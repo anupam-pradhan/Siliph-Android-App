@@ -1839,6 +1839,27 @@ class PdfApi {
     ;
   }
 
+  /// Overlays page numbers on every page of [uri].
+  /// [position]: `bottom-center`, `bottom-right`, `top-center`, `top-right`.
+  /// [format]: `page_x_of_y`, `x`, `dash_x_dash`. [startPage]: starting number (usually 1).
+  Future<void> startAddPageNumbers(String uri, String position, String format, int startPage, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startAddPageNumbers$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, position, format, startPage, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
   /// Decrypts [uri] using [password] and saves an unencrypted copy.
   /// Throws `invalid_input` for a wrong password.
   Future<void> startUnlock(String uri, String password, String outputUri, String taskId) async {

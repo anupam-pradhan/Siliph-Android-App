@@ -177,7 +177,7 @@ class PdfBridge(
                                 name = field.fullyQualifiedName ?: field.partialName ?: "",
                                 type = type,
                                 value = try {
-                                    field.value ?: ""
+                                    field.valueAsString ?: ""
                                 } catch (e: Exception) {
                                     ""
                                 },
@@ -307,6 +307,21 @@ class PdfBridge(
     override fun startProtect(uri: String, password: String, outputUri: String, taskId: String) {
         runTask(taskId) { cancelled ->
             runProtect(uri, password, outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startAddPageNumbers(
+        uri: String,
+        position: String,
+        format: String,
+        startPage: Long,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runAddPageNumbers(
+                uri, position, format, startPage.toInt(), outputUri, taskId, cancelled
+            )
         }
     }
 
@@ -1132,6 +1147,64 @@ class PdfBridge(
                 resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
                     doc.save(out)
                 } ?: throw FlutterError("io_error", "Cannot write output", null)
+                postProgress(taskId, 1.0)
+            }
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    private fun runAddPageNumbers(
+        uri: String,
+        position: String,
+        format: String,
+        startPage: Int,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("addPageNumbers")
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                val totalPages = doc.numberOfPages
+                for (index in 0 until totalPages) {
+                    checkCancellation(cancelled)
+                    val pageNum = startPage + index
+                    val text = when (format) {
+                        "page_x_of_y" -> "Page $pageNum of ${startPage + totalPages - 1}"
+                        "dash_x_dash" -> "- $pageNum -"
+                        else -> "$pageNum"
+                    }
+                    val page = doc.getPage(index)
+                    val box = page.mediaBox
+                    val fontSize = 10f
+                    val approxWidth = fontSize * text.length * 0.5f
+                    PDPageContentStream(
+                        doc, page, PDPageContentStream.AppendMode.APPEND, true, true
+                    ).use { stream ->
+                        stream.setFont(PDType1Font.HELVETICA_BOLD, fontSize)
+                        stream.setNonStrokingColor(0.2f, 0.2f, 0.2f)
+                        stream.beginText()
+                        val x = when (position) {
+                            "bottom-right", "top-right" -> box.width - approxWidth - 24f
+                            "bottom-left", "top-left" -> 24f
+                            else -> (box.width - approxWidth) / 2f
+                        }
+                        val y = when (position) {
+                            "top-center", "top-right", "top-left" -> box.height - fontSize - 18f
+                            else -> 18f
+                        }
+                        stream.setTextMatrix(Matrix.getTranslateInstance(x, y))
+                        stream.showText(text)
+                        stream.endText()
+                    }
+                    postProgress(taskId, (index + 1).toDouble() / (totalPages + 1))
+                }
+                checkCancellation(cancelled)
+                val outParsed = Uri.parse(outputUri)
+                resolver.openOutputStream(outParsed, "rwt")?.use { out ->
+                    doc.save(out)
+                } ?: throw FlutterError("io_error", "Cannot write output: $outputUri", null)
                 postProgress(taskId, 1.0)
             }
         } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)

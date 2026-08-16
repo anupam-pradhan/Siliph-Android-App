@@ -312,6 +312,24 @@ class FakePdfGateway implements PdfGateway {
     return _startOp();
   }
 
+  int addPageNumbersCalls = 0;
+  String? lastPageNumberPosition;
+  String? lastPageNumberFormat;
+
+  @override
+  TaskHandle addPageNumbers({
+    required FileItem input,
+    required String position,
+    required String format,
+    required int startPage,
+    required FileItem output,
+  }) {
+    addPageNumbersCalls++;
+    lastPageNumberPosition = position;
+    lastPageNumberFormat = format;
+    return _startOp();
+  }
+
   @override
   TaskHandle protect({
     required FileItem input,

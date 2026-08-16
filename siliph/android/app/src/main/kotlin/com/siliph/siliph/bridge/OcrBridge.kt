@@ -10,7 +10,6 @@ import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
-import com.google.mlkit.vision.text.bengali.BengaliTextRecognizerOptions
 import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
@@ -32,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * OCR engine boundary (sections 5, 192) backed by the bundled ML Kit
- * Latin text recognizer: no network, no Play-services model download.
+ * Latin and Devanagari text recognizers: no network, no Play-services model download.
  *
  * - recognizeImage: one bitmap in, normalized text blocks out.
  * - recognizePdf: each page rendered at 150 DPI and recognized in turn.
@@ -52,22 +51,32 @@ class OcrBridge(
     }
     private val cancellations = ConcurrentHashMap<String, AtomicBoolean>()
     private val mainHandler = Handler(Looper.getMainLooper())
-    // Bundled models: English/Latin, Hindi (Devanagari) and Bengali ship
+    // Bundled models: English/Latin and Hindi (Devanagari) ship
     // inside the APK, so OCR stays fully offline (section 19).
-    private val latinRecognizer: TextRecognizer by lazy {
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    @Volatile
+    private var latinRecognizer: TextRecognizer? = null
+    @Volatile
+    private var devanagariRecognizer: TextRecognizer? = null
+
+    private fun getLatinRecognizer(): TextRecognizer {
+        return latinRecognizer ?: synchronized(this) {
+            latinRecognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also {
+                latinRecognizer = it
+            }
+        }
     }
-    private val devanagariRecognizer: TextRecognizer by lazy {
-        TextRecognition.getClient(DevanagariTextRecognizerOptions.DEFAULT_OPTIONS)
-    }
-    private val bengaliRecognizer: TextRecognizer by lazy {
-        TextRecognition.getClient(BengaliTextRecognizerOptions.DEFAULT_OPTIONS)
+
+    private fun getDevanagariRecognizer(): TextRecognizer {
+        return devanagariRecognizer ?: synchronized(this) {
+            devanagariRecognizer ?: TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build()).also {
+                devanagariRecognizer = it
+            }
+        }
     }
 
     private fun recognizerFor(language: String): TextRecognizer = when (language) {
-        "devanagari" -> devanagariRecognizer
-        "bengali" -> bengaliRecognizer
-        else -> latinRecognizer
+        "devanagari", "hindi" -> getDevanagariRecognizer()
+        else -> getLatinRecognizer()
     }
 
     override fun startRecognizeImage(uri: String, language: String, taskId: String) {
@@ -100,8 +109,8 @@ class OcrBridge(
     fun shutdown() {
         cancellations.values.forEach { it.set(true) }
         executor.shutdownNow()
-        // Only close recognizers that were actually created (lazy).
-        if (this::latinRecognizer.isInitialized) latinRecognizer.close()
+        latinRecognizer?.close()
+        devanagariRecognizer?.close()
     }
 
     /// Runs [action] on the worker thread with cancellation + typed events.

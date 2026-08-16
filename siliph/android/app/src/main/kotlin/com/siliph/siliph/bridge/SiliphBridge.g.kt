@@ -1530,6 +1530,12 @@ interface PdfApi {
   /** Encrypts the output with [password] (user + owner). */
   fun startProtect(uri: String, password: String, outputUri: String, taskId: String)
   /**
+   * Overlays page numbers on every page of [uri].
+   * [position]: `bottom-center`, `bottom-right`, `top-center`, `top-right`.
+   * [format]: `page_x_of_y`, `x`, `dash_x_dash`. [startPage]: starting number (usually 1).
+   */
+  fun startAddPageNumbers(uri: String, position: String, format: String, startPage: Long, outputUri: String, taskId: String)
+  /**
    * Decrypts [uri] using [password] and saves an unencrypted copy.
    * Throws `invalid_input` for a wrong password.
    */
@@ -1995,6 +2001,29 @@ interface PdfApi {
             val taskIdArg = args[3] as String
             val wrapped: List<Any?> = try {
               api.startProtect(uriArg, passwordArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startAddPageNumbers$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val positionArg = args[1] as String
+            val formatArg = args[2] as String
+            val startPageArg = args[3] as Long
+            val outputUriArg = args[4] as String
+            val taskIdArg = args[5] as String
+            val wrapped: List<Any?> = try {
+              api.startAddPageNumbers(uriArg, positionArg, formatArg, startPageArg, outputUriArg, taskIdArg)
               listOf(null)
             } catch (exception: Throwable) {
               SiliphBridgePigeonUtils.wrapError(exception)

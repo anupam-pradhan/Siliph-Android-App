@@ -70,6 +70,9 @@ class FakeFileGateway implements FileGateway {
 }
 
 class FakePdfGateway implements PdfGateway {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
   final inspected = <String>[];
   List<FileItem>? lastInputs;
   FileItem? lastOutput;

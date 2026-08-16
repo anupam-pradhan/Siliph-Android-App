@@ -265,6 +265,24 @@ final List<ToolDefinition> _catalog = [
     // Read/edit/strip the document-information dictionary on copies.
     availability: ToolAvailability.ready,
   ),
+  _tool(
+    id: 'pdf-page-numbers',
+    title: 'Page Numbers',
+    subtitle: 'Add page numbers to PDF.',
+    category: ToolCategory.pdf,
+    icon: Icons.numbers_outlined,
+    keywords: {'number', 'header', 'footer', 'page'},
+    availability: ToolAvailability.ready,
+  ),
+  _tool(
+    id: 'pdf-tts',
+    title: 'PDF Text-to-Speech',
+    subtitle: 'Listen to PDF documents read aloud.',
+    category: ToolCategory.pdf,
+    icon: Icons.record_voice_over_outlined,
+    keywords: {'speech', 'tts', 'listen', 'audio', 'read'},
+    availability: ToolAvailability.ready,
+  ),
 
   // --- Images -------------------------------------------------------------
   _tool(
@@ -589,19 +607,21 @@ final List<ToolDefinition> _catalog = [
   _tool(
     id: 'ai-summarize',
     title: 'Summarize PDF',
-    subtitle: 'Get a summary of a document.',
+    subtitle: 'Get an executive summary & key points on-device.',
     category: ToolCategory.ai,
     icon: Icons.summarize_outlined,
-    keywords: {'summary', 'ai', 'tldr'},
-    requiresNetwork: true,
+    keywords: {'summary', 'ai', 'tldr', 'key points', 'entities'},
+    requiresNetwork: false,
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'ai-ask',
     title: 'Ask PDF',
-    subtitle: 'Ask questions about a document.',
+    subtitle: 'Ask questions about a document on-device.',
     category: ToolCategory.ai,
     icon: Icons.question_answer_outlined,
-    keywords: {'chat', 'ask', 'ai', 'question'},
-    requiresNetwork: true,
+    keywords: {'chat', 'ask', 'ai', 'question', 'citation'},
+    requiresNetwork: false,
+    availability: ToolAvailability.ready,
   ),
 ];

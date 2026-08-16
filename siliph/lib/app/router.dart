@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_shell.dart';
+import '../features/ai/ai_ask_screen.dart';
+import '../features/ai/ai_summarize_screen.dart';
 import '../features/annotate/annotate_pdf_screen.dart';
 import '../features/archive/zip_create_screen.dart';
 import '../features/archive/zip_extract_screen.dart';
@@ -26,9 +28,11 @@ import '../features/metadata/pdf_metadata_screen.dart';
 import '../features/ocr/ocr_image_screen.dart';
 import '../features/ocr/ocr_pdf_screen.dart';
 import '../features/ocr/searchable_pdf_screen.dart';
+import '../features/pages/pdf_page_numbers_screen.dart';
 import '../features/qr/qr_generate_screen.dart';
 import '../features/qr/qr_scan_screen.dart';
 import '../features/reader/pdf_reader_screen.dart';
+import '../features/reader/pdf_tts_screen.dart';
 import '../features/scan/scan_capture_screen.dart';
 import '../features/security/password_security_screen.dart';
 import '../features/security/redact_pdf_screen.dart';
@@ -76,6 +80,8 @@ abstract final class SiliphRoutes {
   static const String protectPdfWorkflow = '/workflows/pdf-protect';
   static const String unlockPdfWorkflow = '/workflows/pdf-unlock';
   static const String pdfMetadataWorkflow = '/workflows/pdf-metadata';
+  static const String pdfPageNumbersWorkflow = '/workflows/pdf-page-numbers';
+  static const String pdfTtsWorkflow = '/workflows/pdf-tts';
   static const String imagesToPdfWorkflow = '/workflows/images-to-pdf';
   static const String imageToPdfWorkflow = '/workflows/image-to-pdf';
   static const String pdfToImagesWorkflow = '/workflows/pdf-to-images';
@@ -104,6 +110,8 @@ abstract final class SiliphRoutes {
   static const String signPdfWorkflow = '/workflows/sign-pdf';
   static const String annotatePdfWorkflow = '/workflows/annotate-pdf';
   static const String redactPdfWorkflow = '/workflows/redact-pdf';
+  static const String aiSummarizeWorkflow = '/workflows/ai-summarize';
+  static const String aiAskWorkflow = '/workflows/ai-ask';
 
   static String tool(String toolId) => '/tools/$toolId';
 
@@ -127,6 +135,8 @@ abstract final class SiliphRoutes {
         'protect-pdf' => protectPdfWorkflow,
         'unlock-pdf' => unlockPdfWorkflow,
         'pdf-metadata' => pdfMetadataWorkflow,
+        'pdf-page-numbers' => pdfPageNumbersWorkflow,
+        'pdf-tts' => pdfTtsWorkflow,
         'images-to-pdf' => imagesToPdfWorkflow,
         'image-to-pdf' => imageToPdfWorkflow,
         'pdf-to-images' => pdfToImagesWorkflow,
@@ -155,6 +165,8 @@ abstract final class SiliphRoutes {
         'sign-pdf' => signPdfWorkflow,
         'annotate-pdf' => annotatePdfWorkflow,
         'redact-pdf' => redactPdfWorkflow,
+        'ai-summarize' => aiSummarizeWorkflow,
+        'ai-ask' => aiAskWorkflow,
         _ => null,
       };
 }
@@ -401,6 +413,22 @@ GoRouter buildRouter() {
       GoRoute(
         path: SiliphRoutes.redactPdfWorkflow,
         builder: (context, state) => const RedactPdfScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.pdfPageNumbersWorkflow,
+        builder: (context, state) => const PdfPageNumbersScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.pdfTtsWorkflow,
+        builder: (context, state) => const PdfTtsScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.aiSummarizeWorkflow,
+        builder: (context, state) => const AiSummarizeScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.aiAskWorkflow,
+        builder: (context, state) => const AiAskScreen(),
       ),
     ],
     errorBuilder: (context, state) => const _NotFoundScreen(),

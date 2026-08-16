@@ -410,6 +410,15 @@ abstract interface class PdfGateway {
     required FileItem output,
   });
 
+  /// Overlays page numbers on every page.
+  TaskHandle addPageNumbers({
+    required FileItem input,
+    required String position,
+    required String format,
+    required int startPage,
+    required FileItem output,
+  });
+
   /// Encrypts the output with [password].
   TaskHandle protect({
     required FileItem input,
@@ -779,6 +788,26 @@ class NativePdfGateway implements PdfGateway {
           input.uri,
           text,
           position,
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  TaskHandle addPageNumbers({
+    required FileItem input,
+    required String position,
+    required String format,
+    required int startPage,
+    required FileItem output,
+  }) =>
+      _run(
+        'add-page-numbers',
+        (taskId) => _api.startAddPageNumbers(
+          input.uri,
+          position,
+          format,
+          startPage,
           output.uri,
           taskId,
         ),

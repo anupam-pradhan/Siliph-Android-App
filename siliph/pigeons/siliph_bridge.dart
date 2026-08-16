@@ -476,6 +476,18 @@ abstract class PdfApi {
   /// Encrypts the output with [password] (user + owner).
   void startProtect(String uri, String password, String outputUri, String taskId);
 
+  /// Overlays page numbers on every page of [uri].
+  /// [position]: `bottom-center`, `bottom-right`, `top-center`, `top-right`.
+  /// [format]: `page_x_of_y`, `x`, `dash_x_dash`. [startPage]: starting number (usually 1).
+  void startAddPageNumbers(
+    String uri,
+    String position,
+    String format,
+    int startPage,
+    String outputUri,
+    String taskId,
+  );
+
   /// Decrypts [uri] using [password] and saves an unencrypted copy.
   /// Throws `invalid_input` for a wrong password.
   void startUnlock(String uri, String password, String outputUri, String taskId);
