@@ -406,10 +406,16 @@ class _PlacementPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const stampAspect = 1 / 3;
+    const pageWidth = 160.0;
+    const pageHeight = 220.0;
+    final w = width * pageWidth;
+    final h = (w * stampAspect).clamp(4.0, pageHeight);
+    final left = (x * pageWidth).clamp(0.0, pageWidth - w);
+    final top = (y * pageHeight).clamp(0.0, pageHeight - h);
     return Center(
       child: SizedBox(
-        width: 160,
-        height: 220,
+        width: pageWidth,
+        height: pageHeight,
         child: Stack(
           children: [
             Positioned.fill(
@@ -421,28 +427,18 @@ class _PlacementPreview extends StatelessWidget {
                 ),
               ),
             ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final w = width * constraints.maxWidth;
-                final h = (w * stampAspect).clamp(4.0, constraints.maxHeight);
-                final left = (x * constraints.maxWidth)
-                    .clamp(0.0, constraints.maxWidth - w);
-                final top = (y * constraints.maxHeight)
-                    .clamp(0.0, constraints.maxHeight - h);
-                return Positioned(
-                  left: left,
-                  top: top,
-                  width: w,
-                  height: h,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: SiliphColors.primary.withValues(alpha: 0.35),
-                      border: Border.all(color: SiliphColors.primary),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                );
-              },
+            Positioned(
+              left: left,
+              top: top,
+              width: w,
+              height: h,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: SiliphColors.primary.withValues(alpha: 0.35),
+                  border: Border.all(color: SiliphColors.primary),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
           ],
         ),

@@ -43,13 +43,6 @@ final Uint8List _tinyPng = base64Decode(
   'AAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
 );
 
-Widget _app(ProviderScope scope, Widget home) {
-  return ProviderScope(
-    overrides: scope.overrides,
-    child: MaterialApp(theme: SiliphTheme.build(), home: home),
-  );
-}
-
 /// Pumps until [isDone] with real async turns so image codec callbacks
 /// (which do not fire while only pumping frames) can resolve.
 Future<void> _waitUntil(
@@ -74,12 +67,13 @@ void main() {
         ..nextRenderedPage = _tinyPng
         ..inspectPageCount = 3;
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           pdfGatewayProvider.overrideWithValue(pdfs),
-        ]),
-        const PdfReaderScreen(),
+        ],
+        child: MaterialApp(
+            theme: SiliphTheme.build(), home: const PdfReaderScreen()),
       ));
 
       await tester.tap(find.text('Choose PDF'));
@@ -106,12 +100,12 @@ void main() {
         ..nextBarcode =
             BarcodeResult(rawValue: 'https://siliph.app', format: 'qr');
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           fileToolsGatewayProvider.overrideWithValue(tools),
-        ]),
-        const QrScanScreen(),
+        ],
+        child: MaterialApp(theme: SiliphTheme.build(), home: const QrScanScreen()),
       ));
 
       await tester.tap(find.text('Choose image'));
@@ -131,17 +125,22 @@ void main() {
       final files = FakeFileGateway()..nextPhoto = _photoFile;
       final pdfs = FakePdfGateway();
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           pdfGatewayProvider.overrideWithValue(pdfs),
-        ]),
-        const ScanCaptureScreen(mode: ScanMode.document),
+        ],
+        child: MaterialApp(
+            theme: SiliphTheme.build(),
+            home: const ScanCaptureScreen(mode: ScanMode.document)),
       ));
 
       // Save is disabled with zero pages.
       expect(
-        tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Create PDF')).onPressed,
+        tester
+            .widget<FilledButton>(find.widgetWithText(
+                FilledButton, 'Capture at least one page'))
+            .onPressed,
         isNull,
       );
 
@@ -178,12 +177,13 @@ void main() {
           ),
         ];
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           ocrGatewayProvider.overrideWithValue(ocr),
-        ]),
-        const OcrImageScreen(),
+        ],
+        child: MaterialApp(
+            theme: SiliphTheme.build(), home: const OcrImageScreen()),
       ));
 
       await tester.tap(find.text('Choose image'));
@@ -219,12 +219,13 @@ void main() {
               bottom: 0.1),
         ];
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           ocrGatewayProvider.overrideWithValue(ocr),
-        ]),
-        const OcrPdfScreen(),
+        ],
+        child:
+            MaterialApp(theme: SiliphTheme.build(), home: const OcrPdfScreen()),
       ));
 
       await tester.tap(find.text('Choose PDF'));
@@ -245,12 +246,13 @@ void main() {
       final files = FakeFileGateway()..nextOpen = [_pdfFile];
       final ocr = FakeOcrGateway();
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           ocrGatewayProvider.overrideWithValue(ocr),
-        ]),
-        const SearchablePdfScreen(),
+        ],
+        child: MaterialApp(
+            theme: SiliphTheme.build(), home: const SearchablePdfScreen()),
       ));
 
       await tester.tap(find.text('Choose PDF'));
@@ -272,12 +274,13 @@ void main() {
         ..nextPickedImages = [_photoFile];
       final pdfs = FakePdfGateway()..inspectPageCount = 2;
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           pdfGatewayProvider.overrideWithValue(pdfs),
-        ]),
-        const SignPdfScreen(),
+        ],
+        child:
+            MaterialApp(theme: SiliphTheme.build(), home: const SignPdfScreen()),
       ));
 
       await tester.tap(find.text('Choose PDF'));
@@ -290,7 +293,10 @@ void main() {
       await tester.pump();
       expect(find.text('photo.jpg'), findsOneWidget);
 
-      await tester.tap(find.text('Sign PDF'));
+      final signButton = find.widgetWithText(FilledButton, 'Sign PDF');
+      await tester.ensureVisible(signButton);
+      await tester.pump();
+      await tester.tap(signButton);
       await tester.pump();
       await tester.pump();
       await pdfs.finishRunningTask();
@@ -308,20 +314,21 @@ void main() {
       final files = FakeFileGateway()..nextOpen = [_pdfFile];
       final pdfs = FakePdfGateway()..nextRenderedPage = _tinyPng;
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           pdfGatewayProvider.overrideWithValue(pdfs),
-        ]),
-        const AnnotatePdfScreen(),
+        ],
+        child: MaterialApp(
+            theme: SiliphTheme.build(), home: const AnnotatePdfScreen()),
       ));
 
       await tester.tap(find.text('Choose PDF'));
       await tester.pump();
       await tester.pump();
-      await pdfs.finishRunningTask();
+      await pdfs.finishRunningTask(); // rendered page
       await _waitUntil(
-          tester, () => find.textContaining('Page 1 of').evaluate().isNotEmpty);
+          tester, () => find.byType(Image).evaluate().isNotEmpty);
 
       // Save is blocked until something is drawn.
       expect(
@@ -332,8 +339,10 @@ void main() {
         isNull,
       );
 
-      final gesture = await tester.startGesture(const Offset(360, 280));
-      await gesture.moveTo(const Offset(440, 320));
+      final annotateCenter = tester.getCenter(find.byType(Image).last);
+      final gesture =
+          await tester.startGesture(annotateCenter - const Offset(40, 20));
+      await gesture.moveTo(annotateCenter + const Offset(40, 20));
       await gesture.up();
       await tester.pump();
 
@@ -355,23 +364,26 @@ void main() {
       final files = FakeFileGateway()..nextOpen = [_pdfFile];
       final pdfs = FakePdfGateway()..nextRenderedPage = _tinyPng;
 
-      await tester.pumpWidget(_app(
-        ProviderScope(overrides: [
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
           fileGatewayProvider.overrideWithValue(files),
           pdfGatewayProvider.overrideWithValue(pdfs),
-        ]),
-        const RedactPdfScreen(),
+        ],
+        child: MaterialApp(
+            theme: SiliphTheme.build(), home: const RedactPdfScreen()),
       ));
 
       await tester.tap(find.text('Choose PDF'));
       await tester.pump();
       await tester.pump();
-      await pdfs.finishRunningTask();
+      await pdfs.finishRunningTask(); // rendered page
       await _waitUntil(
-          tester, () => find.textContaining('Page 1 of').evaluate().isNotEmpty);
+          tester, () => find.byType(Image).evaluate().isNotEmpty);
 
-      final gesture = await tester.startGesture(const Offset(360, 280));
-      await gesture.moveTo(const Offset(440, 330));
+      final redactCenter = tester.getCenter(find.byType(Image).last);
+      final gesture =
+          await tester.startGesture(redactCenter - const Offset(40, 25));
+      await gesture.moveTo(redactCenter + const Offset(40, 25));
       await gesture.up();
       await tester.pump();
       expect(find.textContaining('1 region marked'), findsOneWidget);

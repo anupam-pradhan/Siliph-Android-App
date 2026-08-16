@@ -162,3 +162,84 @@ Changes made:
   version 2, finder/timing/dark-module patterns, capacity limits and
   Unicode byte handling all passed.
 Siliph destination: siliph/android/app/src/main/kotlin/com/siliph/siliph/bridge/QrEncoder.kt
+
+## Record 8: PDF render / stamp / annotate / redact (Batch D–G)
+
+Source: com.tom-roush:pdfbox-android 2.0.27.0 public APIs only; no vendored
+source. Same artifact and license as Record 6.
+Original repository: https://github.com/TomRoush/pdfbox-android
+Original commit/version: 2.0.27.0
+License: Apache-2.0
+Changes made:
+- renderPage: PDFRenderer.renderImageWithDPI(index, dpi, ImageType.RGB),
+  JPEG-encoded and delivered to Dart as bytes through the new
+  onImageResult task event (app-generated preview payload; the one
+  deliberate exception to URI-only delivery).
+- stampImage: PDImageXObject.createFromFileByExtension on a staged copy,
+  placed with normalized (x, y, widthFraction) coordinates and a fixed
+  1:3 aspect on the chosen page via a PDPageContentStream overlay. This is
+  a visible image stamp, NOT a cryptographic signature — the UI says so.
+- annotate: pen strokes (smoothed point lists), highlight strokes and box
+  outlines are drawn into the page content stream with normalized
+  coordinates; text annotations sanitize to WinAnsi for the base
+  Helvetica font.
+- redact: each marked normalized rect is filled solid black in the content
+  stream and the page is rebuilt; the UI confirms irreversibility first.
+- All operations run on the shared single-thread executor with
+  AtomicBoolean cancellation, MemoryGuard pre-flight and typed error
+  mapping, as in Records 1, 3, 4 and 6.
+Siliph destination: siliph/android/app/src/main/kotlin/com/siliph/siliph/bridge/PdfBridge.kt
+
+## Record 9: OCR + searchable PDF (ML Kit text recognition)
+
+Source: com.google.mlkit:text-recognition 16.0.1 (bundled build — models
+ship inside the APK, no Google Play services dependency). Public APIs only.
+Original repository: https://developers.google.com/ml-kit/vision/text-recognition
+Original commit/version: 16.0.1
+License: Apache-2.0
+Changes made:
+- recognizeImage / recognizePdf decode inputs (downsampled to <=2000px
+  edges; PDF pages first rendered at 150 DPI), run
+  TextRecognition.getClient(DEFAULT_OPTIONS) on the OCR worker thread and
+  map recognized blocks to normalized 0..1 bounding boxes delivered via
+  the onOcrResult task event.
+- searchablePdf rebuilds each page as an image page plus an INVISIBLE
+  text layer (RenderingMode.NEITHER) positioned from the OCR boxes, so
+  the output looks identical but is selectable. Text is sanitized to
+  WinAnsi; selection is approximate by design and the UI says so.
+Siliph destination: siliph/android/app/src/main/kotlin/com/siliph/siliph/bridge/OcrBridge.kt
+
+## Record 10: QR/barcode decode + camera capture
+
+Source: com.google.mlkit:barcode-scanning 17.3.0 (bundled build) and stock
+Android camera/FileProvider APIs. Public APIs only.
+Original repository: https://developers.google.com/ml-kit/vision/barcode-scanning
+Original commit/version: 17.3.0
+License: Apache-2.0
+Changes made:
+- scanBarcode decodes a picked SAF image (downsampled to <=1600px edges)
+  with BarcodeScanning.getClient() + Tasks.await, returns the raw value
+  and a format name ("qr", "code-128", ...), empty value when nothing is
+  found. No live-camera scanning yet; the UI says so.
+- Document/receipt/ID/book scanning uses MediaStore.ACTION_IMAGE_CAPTURE
+  (system camera app) — no camera permission required. Output files live
+  in the app cache behind a FileProvider (com.siliph.app.fileprovider,
+  cache-path captures/) and are moved into SAF documents after capture.
+Siliph destination: siliph/android/app/src/main/kotlin/com/siliph/siliph/bridge/FileToolsBridge.kt,
+siliph/android/app/src/main/kotlin/com/siliph/siliph/MainActivity.kt
+
+## Record 11: Vendored pdfbox-android artifact
+
+Source: com.tom-roush:pdfbox-android 2.0.27.0 AAR + POM, copied from the
+local Gradle module cache (originally fetched from Maven Central before the
+artifact was withdrawn; repo.maven.apache.org now 404s it).
+Original repository: https://github.com/TomRoush/pdfbox-android
+Original commit/version: 2.0.27.0
+License: Apache-2.0
+Changes made:
+- Stored under android/local-repo in Maven layout (both com/tom-roush and
+  com/tom_roush group paths) and registered as the first repository in
+  android/build.gradle.kts so builds resolve it offline and reproducibly.
+- POM groupId normalized to com.tom_roush to match the dependency
+  coordinates; no binary changes to the AAR.
+Siliph destination: siliph/android/local-repo/com/tom_roush/pdfbox-android/2.0.27.0/

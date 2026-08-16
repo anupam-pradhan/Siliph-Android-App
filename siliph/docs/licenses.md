@@ -9,7 +9,10 @@ added or removed (master prompt section 104).
 |---|---|---|---|
 | flutter_riverpod | 3.x | MIT | State management (section 111 decision) |
 | go_router | 17.x | BSD-3-Clause | Declarative routing (section 112) |
-| com.tom-roush:pdfbox-android | 2.0.27.0 | Apache-2.0 | Native PDF engine (merge today; more ops later) |
+| com.tom-roush:pdfbox-android | 2.0.27.0 | Apache-2.0 | Native PDF engine (render, stamp, annotate, redact, OCR rebuild). Vendored in `android/local-repo` because the artifact left Maven Central |
+| com.google.mlkit:text-recognition | 16.0.1 | Apache-2.0 | Bundled on-device OCR (ocr-image, ocr-pdf, searchable-pdf) |
+| com.google.mlkit:barcode-scanning | 17.3.0 | Apache-2.0 | Bundled on-device QR/barcode decode (qr-scan) |
+| androidx.core:core-ktx | 1.13.1 | Apache-2.0 | FileProvider for camera capture hand-off |
 
 ## Reused source code
 

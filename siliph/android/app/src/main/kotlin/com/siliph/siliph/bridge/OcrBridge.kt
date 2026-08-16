@@ -118,11 +118,9 @@ class OcrBridge(
         resolver.openInputStream(Uri.parse(uri))?.use { input ->
             PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { document ->
                 if (document.isEncrypted) {
-                    try {
-                        document.decrypt("")
-                    } catch (e: Exception) {
-                        throw FlutterError("invalid_pdf", "PDF is password protected", null)
-                    }
+                    // The port exposes no password decrypt path here; be
+                    // honest instead of producing an empty result.
+                    throw FlutterError("invalid_pdf", "PDF is password protected", null)
                 }
                 val renderer = PDFRenderer(document)
                 val pages = document.numberOfPages
@@ -153,11 +151,7 @@ class OcrBridge(
         resolver.openInputStream(Uri.parse(uri))?.use { input ->
             PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { source ->
                 if (source.isEncrypted) {
-                    try {
-                        source.decrypt("")
-                    } catch (e: Exception) {
-                        throw FlutterError("invalid_pdf", "PDF is password protected", null)
-                    }
+                    throw FlutterError("invalid_pdf", "PDF is password protected", null)
                 }
                 val renderer = PDFRenderer(source)
                 val pages = source.numberOfPages
@@ -213,16 +207,19 @@ class OcrBridge(
                 stream.setRenderingMode(RenderingMode.NEITHER) // invisible text layer
                 stream.setFont(PDType1Font.HELVETICA, 10f)
                 for (block in blocks) {
-                    val fontSize = ((block.bottom - block.top) * renderH)
-                        .coerceIn(2f, renderH)
-                    val x = block.left * renderW
+                    val pageW = renderW.toDouble()
+                    val pageH = renderH.toDouble()
+                    val fontSize = ((block.bottom - block.top) * pageH)
+                        .coerceIn(2.0, pageH)
+                    val x = (block.left * pageW).toFloat()
                     // PDF y grows upward; the recognizer's bottom edge sits
                     // close to the line baseline, so nudge up by ~0.8em.
-                    val y = renderH - block.bottom * renderH + fontSize * 0.8f
+                    val y = (pageH - block.bottom * pageH + fontSize * 0.8)
+                        .toFloat()
                     val safe = winAnsiSafe(block.text)
                     if (safe.isBlank()) continue
                     stream.beginText()
-                    stream.setFontAndSize(PDType1Font.HELVETICA, fontSize)
+                    stream.setFont(PDType1Font.HELVETICA, fontSize.toFloat())
                     stream.newLineAtOffset(x, y)
                     stream.showText(safe)
                     stream.endText()
