@@ -1,5 +1,8 @@
 allprojects {
     repositories {
+        // Vendored artifacts (pdfbox-android left Maven Central; the exact
+        // cached build is checked in so builds stay reproducible offline).
+        maven(url = "${rootProject.projectDir}/local-repo")
         google()
         mavenCentral()
     }

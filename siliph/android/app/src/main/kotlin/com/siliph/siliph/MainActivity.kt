@@ -8,6 +8,8 @@ import com.siliph.siliph.bridge.FileToolsApi
 import com.siliph.siliph.bridge.FileToolsBridge
 import com.siliph.siliph.bridge.ImageToolsApi
 import com.siliph.siliph.bridge.ImageToolsBridge
+import com.siliph.siliph.bridge.OcrApi
+import com.siliph.siliph.bridge.OcrBridge
 import com.siliph.siliph.bridge.PdfApi
 import com.siliph.siliph.bridge.PdfBridge
 import com.siliph.siliph.bridge.TaskEventsApi
@@ -20,6 +22,7 @@ class MainActivity : FlutterActivity() {
     private var fileAccessBridge: FileAccessBridge? = null
     private var fileToolsBridge: FileToolsBridge? = null
     private var imageToolsBridge: ImageToolsBridge? = null
+    private var ocrBridge: OcrBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -43,6 +46,10 @@ class MainActivity : FlutterActivity() {
         val imageTools = ImageToolsBridge(applicationContext, taskEvents)
         imageToolsBridge = imageTools
         ImageToolsApi.setUp(messenger, imageTools)
+
+        val ocr = OcrBridge(applicationContext, taskEvents)
+        ocrBridge = ocr
+        OcrApi.setUp(messenger, ocr)
     }
 
     @Deprecated("Deprecated in Java")
@@ -55,6 +62,7 @@ class MainActivity : FlutterActivity() {
         pdfBridge?.shutdown()
         fileToolsBridge?.shutdown()
         imageToolsBridge?.shutdown()
+        ocrBridge?.shutdown()
         super.onDestroy()
     }
 }

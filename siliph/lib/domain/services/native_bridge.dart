@@ -51,6 +51,9 @@ class TaskHandle {
     Future<List<String>>? files,
     this.duplicates,
     this.storageEntries,
+    this.image,
+    this.barcode,
+    this.ocrBlocks,
   }) : files = files ?? Future<List<String>>.value(const []);
 
   final String taskId;
@@ -71,6 +74,16 @@ class TaskHandle {
   /// Storage breakdown for analyzer tasks; null otherwise.
   final Future<List<StorageEntry>>? storageEntries;
 
+  /// Rendered page JPEG for render-page tasks; null otherwise.
+  final Future<Uint8List>? image;
+
+  /// Decoded barcode for scan tasks; null otherwise. An empty
+  /// [BarcodeResult.rawValue] means nothing was found.
+  final Future<BarcodeResult>? barcode;
+
+  /// Recognized text blocks for OCR tasks; null otherwise.
+  final Future<List<OcrBlock>>? ocrBlocks;
+
   /// Issues a cancellation request to the native engine.
   final Future<void> Function() onCancelTask;
 
@@ -87,6 +100,7 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
   Completer<List<FileMeta>>? _pendingPick;
   Completer<FileMeta?>? _pendingCreate;
   Completer<String?>? _pendingFolder;
+  Completer<FileMeta?>? _pendingCamera;
 
   final Map<String, TaskState> _tasks = {};
 
@@ -107,6 +121,9 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
 
   Completer<String?> expectPickFolderResult() =>
       _pendingFolder = Completer<String?>();
+
+  Completer<FileMeta?> expectCameraResult() =>
+      _pendingCamera = Completer<FileMeta?>();
 
   TaskState registerTask(String taskId) {
     final state = TaskState();
@@ -144,6 +161,13 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
     if (completer != null && !completer.isCompleted) {
       completer.complete(treeUri);
     }
+  }
+
+  @override
+  void onCameraResult(FileMeta? file) {
+    final completer = _pendingCamera;
+    _pendingCamera = null;
+    if (completer != null && !completer.isCompleted) completer.complete(file);
   }
 
   // -- TaskEventsApi -------------------------------------------------------
@@ -195,6 +219,30 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
       state.storage.complete(entries);
     }
   }
+
+  @override
+  void onImageResult(String taskId, Uint8List bytes) {
+    final state = _tasks[taskId];
+    if (state != null && !state.image.isCompleted) {
+      state.image.complete(bytes);
+    }
+  }
+
+  @override
+  void onBarcodeResult(String taskId, BarcodeResult result) {
+    final state = _tasks[taskId];
+    if (state != null && !state.barcode.isCompleted) {
+      state.barcode.complete(result);
+    }
+  }
+
+  @override
+  void onOcrResult(String taskId, List<OcrBlock> blocks) {
+    final state = _tasks[taskId];
+    if (state != null && !state.ocr.isCompleted) {
+      state.ocr.complete(blocks);
+    }
+  }
 }
 
 /// Internal progress/completion state for one running task.
@@ -206,6 +254,9 @@ class TaskState {
   final Completer<List<DuplicateGroup>> duplicates =
       Completer<List<DuplicateGroup>>();
   final Completer<List<StorageEntry>> storage = Completer<List<StorageEntry>>();
+  final Completer<Uint8List> image = Completer<Uint8List>();
+  final Completer<BarcodeResult> barcode = Completer<BarcodeResult>();
+  final Completer<List<OcrBlock>> ocr = Completer<List<OcrBlock>>();
 }
 
 /// File intake/export surface. Fakeable in tests.
@@ -242,6 +293,10 @@ abstract interface class FileGateway {
 
   /// Opens the system share sheet for [file].
   Future<void> share(FileItem file);
+
+  /// Launches the system camera app; null when the user cancels. No
+  /// camera permission needed: the camera app does the capture.
+  Future<FileItem?> takePhoto();
 }
 
 /// PDF engine surface. Fakeable in tests.
@@ -324,6 +379,45 @@ abstract interface class PdfGateway {
   TaskHandle unlock({
     required FileItem input,
     required String password,
+    required FileItem output,
+  });
+
+  /// Renders zero-based [pageIndex] at [dpi]; JPEG bytes arrive on
+  /// [TaskHandle.image] before [TaskHandle.done].
+  TaskHandle renderPage({
+    required FileItem input,
+    required int pageIndex,
+    required int dpi,
+  });
+
+  /// Stamps [image] onto one-based [pageNumber]; [x]/[y] are the
+  /// top-left position normalized 0..1, [widthFraction] is the stamp
+  /// width relative to the page width.
+  TaskHandle stampImage({
+    required FileItem input,
+    required FileItem image,
+    required int pageNumber,
+    required double x,
+    required double y,
+    required double widthFraction,
+    required FileItem output,
+  });
+
+  /// Draws ink [strokes] and rectangle [rects] (normalized 0..1 against
+  /// the rendered page) into one-based [pageNumber]'s content stream.
+  TaskHandle annotate({
+    required FileItem input,
+    required int pageNumber,
+    required List<InkStroke> strokes,
+    required List<RectMark> rects,
+    required FileItem output,
+  });
+
+  /// Permanently burns black over every [marks] region; untouched pages
+  /// are copied unchanged.
+  TaskHandle redact({
+    required FileItem input,
+    required List<RedactionMark> marks,
     required FileItem output,
   });
 }
@@ -412,6 +506,18 @@ class NativeFileGateway implements FileGateway {
   Future<void> share(FileItem file) async {
     await _api.shareDocument(file.uri, file.mimeType ?? '');
   }
+
+  @override
+  Future<FileItem?> takePhoto() async {
+    final completer = _router.expectCameraResult();
+    try {
+      await _api.requestTakePhoto();
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Camera unavailable');
+    }
+    final meta = await completer.future;
+    return meta == null ? null : FileItem.fromMeta(meta);
+  }
 }
 
 /// Live [PdfGateway] over the generated [PdfApi].
@@ -428,6 +534,7 @@ class NativePdfGateway implements PdfGateway {
     String prefix,
     Future<void> Function(String taskId) start, {
     bool withFiles = false,
+    bool withImage = false,
   }) {
     final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
     final state = _router.registerTask(taskId);
@@ -437,6 +544,7 @@ class NativePdfGateway implements PdfGateway {
       progress: state.progress.stream,
       done: state.done.future,
       files: withFiles ? state.files.future : null,
+      image: withImage ? state.image.future : null,
       onCancelTask: () => _api.cancel(taskId),
     );
   }
@@ -600,6 +708,62 @@ class NativePdfGateway implements PdfGateway {
         'unlock',
         (taskId) => _api.startUnlock(input.uri, password, output.uri, taskId),
       );
+
+  @override
+  TaskHandle renderPage({
+    required FileItem input,
+    required int pageIndex,
+    required int dpi,
+  }) =>
+      _run(
+        'render-page',
+        (taskId) => _api.startRenderPage(input.uri, pageIndex, dpi, taskId),
+        withImage: true,
+      );
+
+  @override
+  TaskHandle stampImage({
+    required FileItem input,
+    required FileItem image,
+    required int pageNumber,
+    required double x,
+    required double y,
+    required double widthFraction,
+    required FileItem output,
+  }) =>
+      _run(
+        'stamp-image',
+        (taskId) => _api.startStampImage(
+          input.uri, image.uri, pageNumber, x, y, widthFraction,
+          output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle annotate({
+    required FileItem input,
+    required int pageNumber,
+    required List<InkStroke> strokes,
+    required List<RectMark> rects,
+    required FileItem output,
+  }) =>
+      _run(
+        'annotate',
+        (taskId) => _api.startAnnotate(
+          input.uri, pageNumber, strokes, rects, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle redact({
+    required FileItem input,
+    required List<RedactionMark> marks,
+    required FileItem output,
+  }) =>
+      _run(
+        'redact',
+        (taskId) => _api.startRedact(input.uri, marks, output.uri, taskId),
+      );
 }
 
 /// File utilities surface (ZIP, QR, folder analysis). Fakeable in tests.
@@ -632,6 +796,10 @@ abstract interface class FileToolsGateway {
     required int ecLevel,
     required FileItem output,
   });
+
+  /// Decodes a QR/barcode from [image]; the result arrives on
+  /// [TaskHandle.barcode] (empty [BarcodeResult.rawValue] = no match).
+  TaskHandle scanBarcode({required FileItem image});
 }
 
 /// Live [FileToolsGateway] over the generated [FileToolsApi].
@@ -649,6 +817,7 @@ class NativeFileToolsGateway implements FileToolsGateway {
     bool withFiles = false,
     bool withDuplicates = false,
     bool withStorage = false,
+    bool withBarcode = false,
   }) {
     final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
     final state = _router.registerTask(taskId);
@@ -660,6 +829,7 @@ class NativeFileToolsGateway implements FileToolsGateway {
       files: withFiles ? state.files.future : null,
       duplicates: withDuplicates ? state.duplicates.future : null,
       storageEntries: withStorage ? state.storage.future : null,
+      barcode: withBarcode ? state.barcode.future : null,
       onCancelTask: () => _api.cancel(taskId),
     );
   }
@@ -715,6 +885,81 @@ class NativeFileToolsGateway implements FileToolsGateway {
       throw BridgeException(e.code, e.message ?? 'QR generation failed');
     }
   }
+
+  @override
+  TaskHandle scanBarcode({required FileItem image}) => _run(
+        'scan-barcode',
+        (taskId) => _api.startScanBarcode(image.uri, taskId),
+        withBarcode: true,
+      );
+}
+
+/// OCR surface (image/PDF recognition, searchable PDF). Fakeable in tests.
+abstract interface class OcrGateway {
+  /// Recognizes text in [image]; blocks arrive on [TaskHandle.ocrBlocks].
+  TaskHandle recognizeImage({required FileItem image});
+
+  /// Recognizes text on every page of [input]; blocks carry pageIndex.
+  TaskHandle recognizePdf({required FileItem input});
+
+  /// Rebuilds [input] as image pages with an invisible OCR text layer,
+  /// so the output is copy/search-able (approximate selection).
+  TaskHandle searchablePdf({
+    required FileItem input,
+    required FileItem output,
+  });
+}
+
+/// Live [OcrGateway] over the generated [OcrApi].
+class NativeOcrGateway implements OcrGateway {
+  NativeOcrGateway(this._api, this._router);
+
+  final OcrApi _api;
+  final BridgeEventRouter _router;
+
+  int _sequence = 0;
+
+  TaskHandle _run(
+    String prefix,
+    Future<void> Function(String taskId) start, {
+    bool withOcr = false,
+  }) {
+    final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
+    final state = _router.registerTask(taskId);
+    unawaited(start(taskId));
+    return TaskHandle(
+      taskId: taskId,
+      progress: state.progress.stream,
+      done: state.done.future,
+      ocrBlocks: withOcr ? state.ocr.future : null,
+      onCancelTask: () => _api.cancel(taskId),
+    );
+  }
+
+  @override
+  TaskHandle recognizeImage({required FileItem image}) => _run(
+        'ocr-image',
+        (taskId) => _api.startRecognizeImage(image.uri, taskId),
+        withOcr: true,
+      );
+
+  @override
+  TaskHandle recognizePdf({required FileItem input}) => _run(
+        'ocr-pdf',
+        (taskId) => _api.startRecognizePdf(input.uri, taskId),
+        withOcr: true,
+      );
+
+  @override
+  TaskHandle searchablePdf({
+    required FileItem input,
+    required FileItem output,
+  }) =>
+      _run(
+        'searchable-pdf',
+        (taskId) =>
+            _api.startSearchablePdf(input.uri, output.uri, taskId),
+      );
 }
 
 /// Image tools surface (compress, resize, crop, convert, exact-KB, EXIF).

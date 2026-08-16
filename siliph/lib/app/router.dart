@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/app_shell.dart';
+import '../features/annotate/annotate_pdf_screen.dart';
 import '../features/archive/zip_create_screen.dart';
 import '../features/archive/zip_extract_screen.dart';
 import '../features/compress/compress_pdf_screen.dart';
@@ -22,8 +23,15 @@ import '../features/files/rename_file_screen.dart';
 import '../features/files/share_file_screen.dart';
 import '../features/files/storage_analyzer_screen.dart';
 import '../features/metadata/pdf_metadata_screen.dart';
+import '../features/ocr/ocr_image_screen.dart';
+import '../features/ocr/ocr_pdf_screen.dart';
+import '../features/ocr/searchable_pdf_screen.dart';
 import '../features/qr/qr_generate_screen.dart';
+import '../features/qr/qr_scan_screen.dart';
+import '../features/reader/pdf_reader_screen.dart';
+import '../features/scan/scan_capture_screen.dart';
 import '../features/security/password_security_screen.dart';
+import '../features/security/redact_pdf_screen.dart';
 import '../features/watermark/watermark_pdf_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/images/compress_image_screen.dart';
@@ -38,6 +46,7 @@ import '../features/pages/rotate_pdf_screen.dart';
 import '../features/passport/passport_photo_screen.dart';
 import '../features/recent/recent_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/signature/sign_pdf_screen.dart';
 import '../features/signature/signature_maker_screen.dart';
 import '../features/split/split_pdf_screen.dart';
 import '../features/tools/tool_detail_screen.dart';
@@ -83,6 +92,18 @@ abstract final class SiliphRoutes {
   static const String removeExifWorkflow = '/workflows/remove-exif';
   static const String signatureMakerWorkflow = '/workflows/signature-maker';
   static const String passportPhotoWorkflow = '/workflows/passport-photo';
+  static const String pdfReaderWorkflow = '/workflows/pdf-reader';
+  static const String scanDocumentWorkflow = '/workflows/scan-document';
+  static const String scanReceiptWorkflow = '/workflows/scan-receipt';
+  static const String scanIdWorkflow = '/workflows/scan-id';
+  static const String scanBookWorkflow = '/workflows/scan-book';
+  static const String qrScanWorkflow = '/workflows/qr-scan';
+  static const String ocrImageWorkflow = '/workflows/ocr-image';
+  static const String ocrPdfWorkflow = '/workflows/ocr-pdf';
+  static const String searchablePdfWorkflow = '/workflows/searchable-pdf';
+  static const String signPdfWorkflow = '/workflows/sign-pdf';
+  static const String annotatePdfWorkflow = '/workflows/annotate-pdf';
+  static const String redactPdfWorkflow = '/workflows/redact-pdf';
 
   static String tool(String toolId) => '/tools/$toolId';
 
@@ -122,6 +143,18 @@ abstract final class SiliphRoutes {
         'remove-exif' => removeExifWorkflow,
         'signature-maker' => signatureMakerWorkflow,
         'passport-photo' => passportPhotoWorkflow,
+        'pdf-reader' => pdfReaderWorkflow,
+        'scan-document' => scanDocumentWorkflow,
+        'scan-receipt' => scanReceiptWorkflow,
+        'scan-id' => scanIdWorkflow,
+        'scan-book' => scanBookWorkflow,
+        'qr-scan' => qrScanWorkflow,
+        'ocr-image' => ocrImageWorkflow,
+        'ocr-pdf' => ocrPdfWorkflow,
+        'searchable-pdf' => searchablePdfWorkflow,
+        'sign-pdf' => signPdfWorkflow,
+        'annotate-pdf' => annotatePdfWorkflow,
+        'redact-pdf' => redactPdfWorkflow,
         _ => null,
       };
 }
@@ -316,6 +349,58 @@ GoRouter buildRouter() {
       GoRoute(
         path: SiliphRoutes.passportPhotoWorkflow,
         builder: (context, state) => const PassportPhotoScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.pdfReaderWorkflow,
+        builder: (context, state) => const PdfReaderScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.scanDocumentWorkflow,
+        builder: (context, state) =>
+            const ScanCaptureScreen(mode: ScanMode.document),
+      ),
+      GoRoute(
+        path: SiliphRoutes.scanReceiptWorkflow,
+        builder: (context, state) =>
+            const ScanCaptureScreen(mode: ScanMode.receipt),
+      ),
+      GoRoute(
+        path: SiliphRoutes.scanIdWorkflow,
+        builder: (context, state) =>
+            const ScanCaptureScreen(mode: ScanMode.idCard),
+      ),
+      GoRoute(
+        path: SiliphRoutes.scanBookWorkflow,
+        builder: (context, state) =>
+            const ScanCaptureScreen(mode: ScanMode.book),
+      ),
+      GoRoute(
+        path: SiliphRoutes.qrScanWorkflow,
+        builder: (context, state) => const QrScanScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.ocrImageWorkflow,
+        builder: (context, state) => const OcrImageScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.ocrPdfWorkflow,
+        builder: (context, state) => const OcrPdfScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.searchablePdfWorkflow,
+        builder: (context, state) => const SearchablePdfScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.signPdfWorkflow,
+        builder: (context, state) => const SignPdfScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.annotatePdfWorkflow,
+        builder: (context, state) => const AnnotatePdfScreen(),
+      ),
+      GoRoute(
+        path: SiliphRoutes.redactPdfWorkflow,
+        builder: (context, state) => const RedactPdfScreen(),
       ),
     ],
     errorBuilder: (context, state) => const _NotFoundScreen(),

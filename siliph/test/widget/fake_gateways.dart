@@ -54,6 +54,11 @@ class FakeFileGateway implements FileGateway {
   int shareCalls = 0;
   BridgeException? shareError;
 
+  /// Camera capture knobs.
+  FileItem? nextPhoto;
+  BridgeException? photoError;
+  int takePhotoCalls = 0;
+
   @override
   Future<List<FileItem>> openDocuments(List<String> mimeTypes) async {
     openRequests.add(mimeTypes);
@@ -120,6 +125,13 @@ class FakeFileGateway implements FileGateway {
     shareCalls++;
     if (shareError != null) throw shareError!;
   }
+
+  @override
+  Future<FileItem?> takePhoto() async {
+    takePhotoCalls++;
+    if (photoError != null) throw photoError!;
+    return nextPhoto;
+  }
 }
 
 class FakePdfGateway implements PdfGateway {
@@ -164,6 +176,18 @@ class FakePdfGateway implements PdfGateway {
   int unlockCalls = 0;
   String? lastUnlockPassword;
 
+  /// Batch D–G knobs (render/stamp/annotate/redact).
+  Uint8List nextRenderedPage = Uint8List.fromList(const [0xFF, 0xD8]);
+  int renderPageCalls = 0;
+  int? lastRenderedPageIndex;
+  int stampImageCalls = 0;
+  (double, double, double)? lastStampPlacement;
+  int annotateCalls = 0;
+  List<InkStroke>? lastStrokes;
+  List<RectMark>? lastRects;
+  int redactCalls = 0;
+  List<RedactionMark>? lastRedactionMarks;
+
   @override
   Future<PdfInfo> inspect(FileItem file) async {
     if (inspectError != null) throw inspectError!;
@@ -181,6 +205,7 @@ class FakePdfGateway implements PdfGateway {
     lastProgress = StreamController<double>.broadcast();
     lastCompleter = Completer<void>();
     final filesCompleter = Completer<List<String>>()..complete(nextFiles);
+    final imageCompleter = Completer<Uint8List>()..complete(nextRenderedPage);
     if (nextTaskError != null) {
       lastCompleter!.completeError(nextTaskError!);
       nextTaskError = null;
@@ -190,6 +215,7 @@ class FakePdfGateway implements PdfGateway {
       progress: lastProgress!.stream,
       done: lastCompleter!.future,
       files: filesCompleter.future,
+      image: imageCompleter.future,
       onCancelTask: () async {
         if (!lastCompleter!.isCompleted) {
           lastCompleter!
@@ -282,6 +308,57 @@ class FakePdfGateway implements PdfGateway {
     return _startOp();
   }
 
+  @override
+  TaskHandle renderPage({
+    required FileItem input,
+    required int pageIndex,
+    required int dpi,
+  }) {
+    renderPageCalls++;
+    lastRenderedPageIndex = pageIndex;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle stampImage({
+    required FileItem input,
+    required FileItem image,
+    required int pageNumber,
+    required double x,
+    required double y,
+    required double widthFraction,
+    required FileItem output,
+  }) {
+    stampImageCalls++;
+    lastStampPlacement = (x, y, widthFraction);
+    return _startOp();
+  }
+
+  @override
+  TaskHandle annotate({
+    required FileItem input,
+    required int pageNumber,
+    required List<InkStroke> strokes,
+    required List<RectMark> rects,
+    required FileItem output,
+  }) {
+    annotateCalls++;
+    lastStrokes = strokes;
+    lastRects = rects;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle redact({
+    required FileItem input,
+    required List<RedactionMark> marks,
+    required FileItem output,
+  }) {
+    redactCalls++;
+    lastRedactionMarks = marks;
+    return _startOp();
+  }
+
   TaskHandle _newHandle() {
     lastProgress = StreamController<double>.broadcast();
     lastCompleter = Completer<void>();
@@ -361,10 +438,15 @@ class FakeFileToolsGateway implements FileToolsGateway {
   int? lastQrEcLevel;
   BridgeException? qrError;
 
+  /// Barcode scan knobs.
+  BarcodeResult nextBarcode = BarcodeResult(rawValue: '', format: 'none');
+  int scanBarcodeCalls = 0;
+
   TaskHandle _startOp({
     bool withFiles = false,
     bool withDuplicates = false,
     bool withStorage = false,
+    bool withBarcode = false,
   }) {
     lastProgress = StreamController<double>.broadcast();
     lastCompleter = Completer<void>();
@@ -373,6 +455,7 @@ class FakeFileToolsGateway implements FileToolsGateway {
       ..complete(nextDuplicates);
     final storageCompleter = Completer<List<StorageEntry>>()
       ..complete(nextStorage);
+    final barcodeCompleter = Completer<BarcodeResult>()..complete(nextBarcode);
     if (nextTaskError != null) {
       lastCompleter!.completeError(nextTaskError!);
       nextTaskError = null;
@@ -384,6 +467,7 @@ class FakeFileToolsGateway implements FileToolsGateway {
       files: withFiles ? filesCompleter.future : null,
       duplicates: withDuplicates ? dupCompleter.future : null,
       storageEntries: withStorage ? storageCompleter.future : null,
+      barcode: withBarcode ? barcodeCompleter.future : null,
       onCancelTask: () async {
         if (!lastCompleter!.isCompleted) {
           lastCompleter!
@@ -447,6 +531,12 @@ class FakeFileToolsGateway implements FileToolsGateway {
       qrError = null;
       throw error;
     }
+  }
+
+  @override
+  TaskHandle scanBarcode({required FileItem image}) {
+    scanBarcodeCalls++;
+    return _startOp(withBarcode: true);
   }
 }
 
@@ -606,5 +696,68 @@ class FakeImageToolsGateway implements ImageToolsGateway {
       writeBytesError = null;
       throw error;
     }
+  }
+}
+
+class FakeOcrGateway implements OcrGateway {
+  Completer<void>? lastCompleter;
+  StreamController<double>? lastProgress;
+
+  /// Fails the next started task with this error.
+  BridgeException? nextTaskError;
+
+  /// Blocks delivered through [TaskHandle.ocrBlocks].
+  List<OcrBlock> nextBlocks = const [];
+
+  int recognizeImageCalls = 0;
+  int recognizePdfCalls = 0;
+  int searchablePdfCalls = 0;
+
+  TaskHandle _startOp({bool withOcr = false}) {
+    lastProgress = StreamController<double>.broadcast();
+    lastCompleter = Completer<void>();
+    final ocrCompleter = Completer<List<OcrBlock>>()..complete(nextBlocks);
+    if (nextTaskError != null) {
+      lastCompleter!.completeError(nextTaskError!);
+      nextTaskError = null;
+    }
+    return TaskHandle(
+      taskId: 'fake-ocr',
+      progress: lastProgress!.stream,
+      done: lastCompleter!.future,
+      ocrBlocks: withOcr ? ocrCompleter.future : null,
+      onCancelTask: () async {
+        if (!lastCompleter!.isCompleted) {
+          lastCompleter!
+              .completeError(const BridgeException('cancelled', 'x'));
+        }
+      },
+    );
+  }
+
+  /// Test helper: complete the running task (see [FakePdfGateway.finishRunningTask]).
+  Future<void> finishRunningTask() async {
+    lastCompleter?.complete();
+  }
+
+  @override
+  TaskHandle recognizeImage({required FileItem image}) {
+    recognizeImageCalls++;
+    return _startOp(withOcr: true);
+  }
+
+  @override
+  TaskHandle recognizePdf({required FileItem input}) {
+    recognizePdfCalls++;
+    return _startOp(withOcr: true);
+  }
+
+  @override
+  TaskHandle searchablePdf({
+    required FileItem input,
+    required FileItem output,
+  }) {
+    searchablePdfCalls++;
+    return _startOp();
   }
 }

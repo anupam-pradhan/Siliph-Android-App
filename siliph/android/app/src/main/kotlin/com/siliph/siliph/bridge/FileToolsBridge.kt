@@ -2,6 +2,7 @@ package com.siliph.siliph.bridge
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -11,6 +12,10 @@ import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -61,6 +66,12 @@ class FileToolsBridge(
     override fun startAnalyzeStorage(folderTreeUri: String, taskId: String) {
         runTask(taskId) { cancelled ->
             runAnalyzeStorage(folderTreeUri, taskId, cancelled)
+        }
+    }
+
+    override fun startScanBarcode(uri: String, taskId: String) {
+        runTask(taskId) { cancelled ->
+            runScanBarcode(uri, taskId, cancelled)
         }
     }
 
@@ -325,6 +336,64 @@ class FileToolsBridge(
         postEvent { events.onStorageResult(taskId, top) {} }
     }
 
+    private fun runScanBarcode(uri: String, taskId: String, cancelled: AtomicBoolean) {
+        MemoryGuard.checkMemory("qr-scan")
+        val parsed = Uri.parse(uri)
+        val bitmap = decodeBitmap(parsed, MAX_SCAN_DIMENSION)
+            ?: throw FlutterError("invalid_input", "Cannot decode the image", null)
+        try {
+            val scanner = BarcodeScanning.getClient()
+            val barcodes = try {
+                Tasks.await(scanner.process(InputImage.fromBitmap(bitmap, 0)))
+            } catch (e: FlutterError) {
+                throw e
+            } catch (e: Exception) {
+                throw FlutterError("io_error", "Barcode scan failed: ${e.message}", null)
+            } finally {
+                scanner.close()
+            }
+            checkCancellation(cancelled)
+            val best = barcodes.firstOrNull { !it.rawValue.isNullOrEmpty() }
+            val result = BarcodeResult(
+                rawValue = best?.rawValue ?: "",
+                format = if (best != null) barcodeFormatName(best.format) else "none",
+            )
+            postEvent { events.onBarcodeResult(taskId, result) {} }
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    /// Decodes [uri] downsampled so its longest side is at most [maxDim].
+    private fun decodeBitmap(uri: Uri, maxDim: Int): Bitmap? {
+        val resolver = context.contentResolver
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            ?: return null
+        var sample = 1
+        val largest = maxOf(bounds.outWidth, bounds.outHeight)
+        while (largest / sample > maxDim) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        return resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+    }
+
+    private fun barcodeFormatName(format: Int): String = when (format) {
+        Barcode.FORMAT_QR_CODE -> "qr"
+        Barcode.FORMAT_CODE_128 -> "code-128"
+        Barcode.FORMAT_CODE_39 -> "code-39"
+        Barcode.FORMAT_CODE_93 -> "code-93"
+        Barcode.FORMAT_EAN_13 -> "ean-13"
+        Barcode.FORMAT_EAN_8 -> "ean-8"
+        Barcode.FORMAT_UPC_A -> "upc-a"
+        Barcode.FORMAT_UPC_E -> "upc-e"
+        Barcode.FORMAT_ITF -> "itf"
+        Barcode.FORMAT_PDF417 -> "pdf417"
+        Barcode.FORMAT_DATA_MATRIX -> "data-matrix"
+        Barcode.FORMAT_AZTEC -> "aztec"
+        Barcode.FORMAT_CODABAR -> "codabar"
+        else -> "unknown"
+    }
+
     /// Children of a directory document inside [treeUri]; unreadable
     /// directories resolve to an empty list rather than failing the scan.
     private fun queryChildren(treeUri: Uri, parentDocId: String): List<DocEntry> {
@@ -493,5 +562,6 @@ class FileToolsBridge(
     companion object {
         private const val MAX_SCAN_FILES = 30_000
         private const val MAX_ANALYZED_ENTRIES = 50
+        private const val MAX_SCAN_DIMENSION = 1600
     }
 }

@@ -61,6 +61,9 @@ class FakeFileGateway implements FileGateway {
 
   @override
   Future<void> share(FileItem file) => throw UnimplementedError();
+
+  @override
+  Future<FileItem?> takePhoto() => throw UnimplementedError();
 }
 
 class FakePdfGateway implements PdfGateway {
@@ -171,6 +174,44 @@ class FakePdfGateway implements PdfGateway {
   TaskHandle unlock({
     required FileItem input,
     required String password,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle renderPage({
+    required FileItem input,
+    required int pageIndex,
+    required int dpi,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle stampImage({
+    required FileItem input,
+    required FileItem image,
+    required int pageNumber,
+    required double x,
+    required double y,
+    required double widthFraction,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle annotate({
+    required FileItem input,
+    required int pageNumber,
+    required List<InkStroke> strokes,
+    required List<RectMark> rects,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle redact({
+    required FileItem input,
+    required List<RedactionMark> marks,
     required FileItem output,
   }) =>
       throw UnimplementedError();

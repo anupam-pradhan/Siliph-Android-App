@@ -481,6 +481,326 @@ class ImageFacts {
   }
 }
 
+/// A decoded QR code or barcode.
+class BarcodeResult {
+  BarcodeResult({
+    required this.rawValue,
+    required this.format,
+  });
+
+  String rawValue;
+
+  String format;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      rawValue,
+      format,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static BarcodeResult decode(Object result) {
+    result as List<Object?>;
+    return BarcodeResult(
+      rawValue: result[0]! as String,
+      format: result[1]! as String,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! BarcodeResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(rawValue, other.rawValue) && _deepEquals(format, other.format);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'BarcodeResult(rawValue: $rawValue, format: $format)';
+  }
+}
+
+/// One recognized text block. Bounds are normalized (0..1) against the
+/// source image; [pageIndex] is the zero-based PDF page it came from (0
+/// for single-image OCR).
+class OcrBlock {
+  OcrBlock({
+    required this.text,
+    required this.pageIndex,
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  String text;
+
+  int pageIndex;
+
+  double left;
+
+  double top;
+
+  double right;
+
+  double bottom;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      text,
+      pageIndex,
+      left,
+      top,
+      right,
+      bottom,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static OcrBlock decode(Object result) {
+    result as List<Object?>;
+    return OcrBlock(
+      text: result[0]! as String,
+      pageIndex: result[1]! as int,
+      left: result[2]! as double,
+      top: result[3]! as double,
+      right: result[4]! as double,
+      bottom: result[5]! as double,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! OcrBlock || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(text, other.text) && _deepEquals(pageIndex, other.pageIndex) && _deepEquals(left, other.left) && _deepEquals(top, other.top) && _deepEquals(right, other.right) && _deepEquals(bottom, other.bottom);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'OcrBlock(text: $text, pageIndex: $pageIndex, left: $left, top: $top, right: $right, bottom: $bottom)';
+  }
+}
+
+/// A freehand ink stroke drawn on a rendered page. [points] are flattened
+/// normalized x,y pairs; [colorRgb] is 0xRRGGBB; [width] is a fraction of
+/// the page's shortest side.
+class InkStroke {
+  InkStroke({
+    required this.points,
+    required this.colorRgb,
+    required this.width,
+  });
+
+  List<double> points;
+
+  int colorRgb;
+
+  double width;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      points,
+      colorRgb,
+      width,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static InkStroke decode(Object result) {
+    result as List<Object?>;
+    return InkStroke(
+      points: (result[0]! as List<Object?>).cast<double>(),
+      colorRgb: result[1]! as int,
+      width: result[2]! as double,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! InkStroke || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(points, other.points) && _deepEquals(colorRgb, other.colorRgb) && _deepEquals(width, other.width);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'InkStroke(points: $points, colorRgb: $colorRgb, width: $width)';
+  }
+}
+
+/// A rectangle mark on a rendered page (highlight or outline box),
+/// normalized 0..1 against the rendered page.
+class RectMark {
+  RectMark({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+    required this.colorRgb,
+    required this.mode,
+  });
+
+  double left;
+
+  double top;
+
+  double right;
+
+  double bottom;
+
+  int colorRgb;
+
+  String mode;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      left,
+      top,
+      right,
+      bottom,
+      colorRgb,
+      mode,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static RectMark decode(Object result) {
+    result as List<Object?>;
+    return RectMark(
+      left: result[0]! as double,
+      top: result[1]! as double,
+      right: result[2]! as double,
+      bottom: result[3]! as double,
+      colorRgb: result[4]! as int,
+      mode: result[5]! as String,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! RectMark || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(left, other.left) && _deepEquals(top, other.top) && _deepEquals(right, other.right) && _deepEquals(bottom, other.bottom) && _deepEquals(colorRgb, other.colorRgb) && _deepEquals(mode, other.mode);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'RectMark(left: $left, top: $top, right: $right, bottom: $bottom, colorRgb: $colorRgb, mode: $mode)';
+  }
+}
+
+/// A redaction rectangle on one page, normalized 0..1.
+class RedactionMark {
+  RedactionMark({
+    required this.pageIndex,
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  int pageIndex;
+
+  double left;
+
+  double top;
+
+  double right;
+
+  double bottom;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      pageIndex,
+      left,
+      top,
+      right,
+      bottom,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static RedactionMark decode(Object result) {
+    result as List<Object?>;
+    return RedactionMark(
+      pageIndex: result[0]! as int,
+      left: result[1]! as double,
+      top: result[2]! as double,
+      right: result[3]! as double,
+      bottom: result[4]! as double,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! RedactionMark || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(pageIndex, other.pageIndex) && _deepEquals(left, other.left) && _deepEquals(top, other.top) && _deepEquals(right, other.right) && _deepEquals(bottom, other.bottom);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'RedactionMark(pageIndex: $pageIndex, left: $left, top: $top, right: $right, bottom: $bottom)';
+  }
+}
+
 
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
@@ -507,6 +827,21 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is ImageFacts) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
+    }    else if (value is BarcodeResult) {
+      buffer.putUint8(135);
+      writeValue(buffer, value.encode());
+    }    else if (value is OcrBlock) {
+      buffer.putUint8(136);
+      writeValue(buffer, value.encode());
+    }    else if (value is InkStroke) {
+      buffer.putUint8(137);
+      writeValue(buffer, value.encode());
+    }    else if (value is RectMark) {
+      buffer.putUint8(138);
+      writeValue(buffer, value.encode());
+    }    else if (value is RedactionMark) {
+      buffer.putUint8(139);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -527,6 +862,16 @@ class _PigeonCodec extends StandardMessageCodec {
         return StorageEntry.decode(readValue(buffer)!);
       case 134:
         return ImageFacts.decode(readValue(buffer)!);
+      case 135:
+        return BarcodeResult.decode(readValue(buffer)!);
+      case 136:
+        return OcrBlock.decode(readValue(buffer)!);
+      case 137:
+        return InkStroke.decode(readValue(buffer)!);
+      case 138:
+        return RectMark.decode(readValue(buffer)!);
+      case 139:
+        return RedactionMark.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -774,6 +1119,28 @@ class FileAccessApi {
     return pigeonVar_replyValue! as bool;
   }
 
+  /// Launches the system camera app (ACTION_IMAGE_CAPTURE). The shot is
+  /// stored in app-owned storage and delivered through
+  /// [FileResultsApi.onCameraResult] (null when the user cancels). No
+  /// camera permission is needed because the camera app does the capture.
+  Future<void> requestTakePhoto() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.FileAccessApi.requestTakePhoto$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
   /// App-owned cache workspace for intermediate files (section 5 boundary).
   Future<String> tempDirectory() async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.FileAccessApi.tempDirectory$pigeonVar_messageChannelSuffix';
@@ -991,6 +1358,94 @@ class PdfApi {
     ;
   }
 
+  /// Renders the zero-based [pageIndex] of [uri] at [dpi] and delivers the
+  /// JPEG bytes through [TaskEventsApi.onImageResult] before
+  /// [TaskEventsApi.onComplete]. Throws `invalid_input` when the page index
+  /// is out of range.
+  Future<void> startRenderPage(String uri, int pageIndex, int dpi, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startRenderPage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, pageIndex, dpi, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Stamps the image at [imageUri] onto one-based [pageNumber] of [uri].
+  /// [x]/[y] are the top-left position normalized 0..1 against the
+  /// rendered page; [widthFraction] is the stamp width relative to the
+  /// page width, height follows the image's aspect ratio. The original
+  /// content stays intact: the stamp is a new image object on top.
+  Future<void> startStampImage(String uri, String imageUri, int pageNumber, double x, double y, double widthFraction, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startStampImage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, imageUri, pageNumber, x, y, widthFraction, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Draws freehand [strokes] and rectangle [rects] (normalized against
+  /// the rendered page) directly into one-based [pageNumber]'s content
+  /// stream, so the page's original text stays selectable.
+  Future<void> startAnnotate(String uri, int pageNumber, List<InkStroke> strokes, List<RectMark> rects, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startAnnotate$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, pageNumber, strokes, rects, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Permanently removes content under each [marks] rectangle: affected
+  /// pages are re-rendered, the rectangles burned in as black, and the
+  /// page replaced by that image. Pages without marks are copied
+  /// unchanged.
+  Future<void> startRedact(String uri, List<RedactionMark> marks, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startRedact$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, marks, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
   /// Overlays [text] on every page. [position]: `diagonal`, `bottom`,
   /// `top`.
   Future<void> startWatermark(String uri, String text, String position, String outputUri, String taskId) async {
@@ -1180,6 +1635,27 @@ class FileToolsApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[content, ecLevel, outputUri]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Decodes the first QR code / barcode found in the image at [uri].
+  /// The result arrives through [TaskEventsApi.onBarcodeResult] before
+  /// [TaskEventsApi.onComplete]; when nothing decodes, rawValue is empty.
+  Future<void> startScanBarcode(String uri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.FileToolsApi.startScanBarcode$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -1428,6 +1904,103 @@ class ImageToolsApi {
   }
 }
 
+/// On-device text recognition backed by the bundled ML Kit recognizer.
+///
+/// All operations report blocks through [TaskEventsApi.onOcrResult] before
+/// [TaskEventsApi.onComplete]; progress events track multi-page work.
+class OcrApi {
+  /// Constructor for [OcrApi]. The [binaryMessenger] named argument is
+  /// available for dependency injection. If it is left null, the default
+  /// BinaryMessenger will be used which routes to the host platform.
+  OcrApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
+      : pigeonVar_binaryMessenger = binaryMessenger,
+        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
+  final BinaryMessenger? pigeonVar_binaryMessenger;
+
+  static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
+
+  final String pigeonVar_messageChannelSuffix;
+
+  /// Recognizes text in the image at [uri]; blocks carry pageIndex 0.
+  Future<void> startRecognizeImage(String uri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.startRecognizeImage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Renders every page of the PDF at [uri] and recognizes each one;
+  /// blocks carry their zero-based page index.
+  Future<void> startRecognizePdf(String uri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.startRecognizePdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Builds a searchable copy of [uri] at [outputUri]: each page becomes
+  /// its rendered image plus an invisible text layer from OCR. Text
+  /// selection on the output is approximate.
+  Future<void> startSearchablePdf(String uri, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.startSearchablePdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Requests cancellation of a running task. Safe when unknown.
+  Future<void> cancel(String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.cancel$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+}
+
 /// Native -> Flutter results for picker requests.
 abstract class FileResultsApi {
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -1439,6 +2012,9 @@ abstract class FileResultsApi {
   void onCreateDocumentResult(FileMeta? file);
 
   void onPickFolderResult(String? treeUri);
+
+  /// Result of a system-camera capture; null when cancelled.
+  void onCameraResult(FileMeta? file);
 
   static void setUp(FileResultsApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
@@ -1526,6 +2102,27 @@ abstract class FileResultsApi {
         });
       }
     }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.FileResultsApi.onCameraResult$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final FileMeta? arg_file = args[0] as FileMeta?;
+          try {
+            api.onCameraResult(arg_file);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
   }
 }
 
@@ -1549,6 +2146,17 @@ abstract class TaskEventsApi {
 
   /// Storage breakdown for analyzer tasks. Delivered before [onComplete].
   void onStorageResult(String taskId, List<StorageEntry> entries);
+
+  /// Rendered page image (JPEG bytes) for single-page render tasks
+  /// (reader / annotate / redact / sign previews). Delivered before
+  /// [onComplete].
+  void onImageResult(String taskId, Uint8List bytes);
+
+  /// Decoded QR/barcode for scan tasks. Delivered before [onComplete].
+  void onBarcodeResult(String taskId, BarcodeResult result);
+
+  /// Recognized text blocks for OCR tasks. Delivered before [onComplete].
+  void onOcrResult(String taskId, List<OcrBlock> blocks);
 
   static void setUp(TaskEventsApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
@@ -1675,6 +2283,72 @@ abstract class TaskEventsApi {
           final List<StorageEntry> arg_entries = (args[1]! as List<Object?>).cast<StorageEntry>();
           try {
             api.onStorageResult(arg_taskId, arg_entries);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.TaskEventsApi.onImageResult$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_taskId = args[0]! as String;
+          final Uint8List arg_bytes = args[1]! as Uint8List;
+          try {
+            api.onImageResult(arg_taskId, arg_bytes);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.TaskEventsApi.onBarcodeResult$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_taskId = args[0]! as String;
+          final BarcodeResult arg_result = args[1]! as BarcodeResult;
+          try {
+            api.onBarcodeResult(arg_taskId, arg_result);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.TaskEventsApi.onOcrResult$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_taskId = args[0]! as String;
+          final List<OcrBlock> arg_blocks = (args[1]! as List<Object?>).cast<OcrBlock>();
+          try {
+            api.onOcrResult(arg_taskId, arg_blocks);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

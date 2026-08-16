@@ -87,6 +87,11 @@ final imageToolsGatewayProvider = Provider<ImageToolsGateway>((ref) {
       ImageToolsApi(), ref.watch(bridgeEventRouterProvider));
 });
 
+/// OCR (image/PDF recognition, searchable PDF).
+final ocrGatewayProvider = Provider<OcrGateway>((ref) {
+  return NativeOcrGateway(OcrApi(), ref.watch(bridgeEventRouterProvider));
+});
+
 /// Files picked in this session, most recent first.
 ///
 /// In-memory by design; the durable document library lands with the data

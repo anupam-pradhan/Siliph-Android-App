@@ -119,6 +119,87 @@ class ImageFacts {
   int sizeBytes;
 }
 
+/// A decoded QR code or barcode.
+class BarcodeResult {
+  BarcodeResult({required this.rawValue, required this.format});
+
+  String rawValue;
+  String format;
+}
+
+/// One recognized text block. Bounds are normalized (0..1) against the
+/// source image; [pageIndex] is the zero-based PDF page it came from (0
+/// for single-image OCR).
+class OcrBlock {
+  OcrBlock({
+    required this.text,
+    required this.pageIndex,
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  String text;
+  int pageIndex;
+  double left;
+  double top;
+  double right;
+  double bottom;
+}
+
+/// A freehand ink stroke drawn on a rendered page. [points] are flattened
+/// normalized x,y pairs; [colorRgb] is 0xRRGGBB; [width] is a fraction of
+/// the page's shortest side.
+class InkStroke {
+  InkStroke({
+    required this.points,
+    required this.colorRgb,
+    required this.width,
+  });
+
+  List<double> points;
+  int colorRgb;
+  double width;
+}
+
+/// A rectangle mark on a rendered page (highlight or outline box),
+/// normalized 0..1 against the rendered page.
+class RectMark {
+  RectMark({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+    required this.colorRgb,
+    required this.mode,
+  });
+
+  double left;
+  double top;
+  double right;
+  double bottom;
+  int colorRgb;
+  String mode; // 'highlight' | 'box'
+}
+
+/// A redaction rectangle on one page, normalized 0..1.
+class RedactionMark {
+  RedactionMark({
+    required this.pageIndex,
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  int pageIndex; // zero-based
+  double left;
+  double top;
+  double right;
+  double bottom;
+}
+
 /// SAF / Photo Picker file intake and export (sections 60, 180).
 ///
 /// Picker methods launch a system UI and resolve through [FileResultsApi];
@@ -166,6 +247,12 @@ abstract class FileAccessApi {
 
   /// Releases a persisted URI permission we no longer need.
   bool releasePersistablePermission(String uri);
+
+  /// Launches the system camera app (ACTION_IMAGE_CAPTURE). The shot is
+  /// stored in app-owned storage and delivered through
+  /// [FileResultsApi.onCameraResult] (null when the user cancels). No
+  /// camera permission is needed because the camera app does the capture.
+  void requestTakePhoto();
 
   /// App-owned cache workspace for intermediate files (section 5 boundary).
   String tempDirectory();
@@ -233,6 +320,51 @@ abstract class PdfApi {
     String taskId,
   );
 
+  /// Renders the zero-based [pageIndex] of [uri] at [dpi] and delivers the
+  /// JPEG bytes through [TaskEventsApi.onImageResult] before
+  /// [TaskEventsApi.onComplete]. Throws `invalid_input` when the page index
+  /// is out of range.
+  void startRenderPage(String uri, int pageIndex, int dpi, String taskId);
+
+  /// Stamps the image at [imageUri] onto one-based [pageNumber] of [uri].
+  /// [x]/[y] are the top-left position normalized 0..1 against the
+  /// rendered page; [widthFraction] is the stamp width relative to the
+  /// page width, height follows the image's aspect ratio. The original
+  /// content stays intact: the stamp is a new image object on top.
+  void startStampImage(
+    String uri,
+    String imageUri,
+    int pageNumber,
+    double x,
+    double y,
+    double widthFraction,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Draws freehand [strokes] and rectangle [rects] (normalized against
+  /// the rendered page) directly into one-based [pageNumber]'s content
+  /// stream, so the page's original text stays selectable.
+  void startAnnotate(
+    String uri,
+    int pageNumber,
+    List<InkStroke> strokes,
+    List<RectMark> rects,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Permanently removes content under each [marks] rectangle: affected
+  /// pages are re-rendered, the rectangles burned in as black, and the
+  /// page replaced by that image. Pages without marks are copied
+  /// unchanged.
+  void startRedact(
+    String uri,
+    List<RedactionMark> marks,
+    String outputUri,
+    String taskId,
+  );
+
   /// Overlays [text] on every page. [position]: `diagonal`, `bottom`,
   /// `top`.
   void startWatermark(
@@ -282,6 +414,11 @@ abstract class FileToolsApi {
   /// 0 low, 1 medium, 2 quartile, 3 high. Synchronous because generation
   /// is fast; throws `invalid_input` when the content is empty or too long.
   void generateQr(String content, int ecLevel, String outputUri);
+
+  /// Decodes the first QR code / barcode found in the image at [uri].
+  /// The result arrives through [TaskEventsApi.onBarcodeResult] before
+  /// [TaskEventsApi.onComplete]; when nothing decodes, rawValue is empty.
+  void startScanBarcode(String uri, String taskId);
 
   /// Requests cancellation of a running task. Safe when unknown.
   void cancel(String taskId);
@@ -353,6 +490,28 @@ abstract class ImageToolsApi {
   void cancel(String taskId);
 }
 
+/// On-device text recognition backed by the bundled ML Kit recognizer.
+///
+/// All operations report blocks through [TaskEventsApi.onOcrResult] before
+/// [TaskEventsApi.onComplete]; progress events track multi-page work.
+@HostApi()
+abstract class OcrApi {
+  /// Recognizes text in the image at [uri]; blocks carry pageIndex 0.
+  void startRecognizeImage(String uri, String taskId);
+
+  /// Renders every page of the PDF at [uri] and recognizes each one;
+  /// blocks carry their zero-based page index.
+  void startRecognizePdf(String uri, String taskId);
+
+  /// Builds a searchable copy of [uri] at [outputUri]: each page becomes
+  /// its rendered image plus an invisible text layer from OCR. Text
+  /// selection on the output is approximate.
+  void startSearchablePdf(String uri, String outputUri, String taskId);
+
+  /// Requests cancellation of a running task. Safe when unknown.
+  void cancel(String taskId);
+}
+
 /// Native -> Flutter results for picker requests.
 @FlutterApi()
 abstract class FileResultsApi {
@@ -360,6 +519,9 @@ abstract class FileResultsApi {
   void onPickImagesResult(List<FileMeta> files);
   void onCreateDocumentResult(FileMeta? file);
   void onPickFolderResult(String? treeUri);
+
+  /// Result of a system-camera capture; null when cancelled.
+  void onCameraResult(FileMeta? file);
 }
 
 /// Native -> Flutter events for long-running tasks keyed by taskId.
@@ -379,4 +541,15 @@ abstract class TaskEventsApi {
 
   /// Storage breakdown for analyzer tasks. Delivered before [onComplete].
   void onStorageResult(String taskId, List<StorageEntry> entries);
+
+  /// Rendered page image (JPEG bytes) for single-page render tasks
+  /// (reader / annotate / redact / sign previews). Delivered before
+  /// [onComplete].
+  void onImageResult(String taskId, Uint8List bytes);
+
+  /// Decoded QR/barcode for scan tasks. Delivered before [onComplete].
+  void onBarcodeResult(String taskId, BarcodeResult result);
+
+  /// Recognized text blocks for OCR tasks. Delivered before [onComplete].
+  void onOcrResult(String taskId, List<OcrBlock> blocks);
 }

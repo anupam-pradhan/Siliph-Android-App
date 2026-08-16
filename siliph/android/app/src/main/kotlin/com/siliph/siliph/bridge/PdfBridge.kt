@@ -3,6 +3,9 @@ package com.siliph.siliph.bridge
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -20,9 +23,11 @@ import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject
+import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState
 import com.tom_roush.pdfbox.rendering.ImageType
 import com.tom_roush.pdfbox.rendering.PDFRenderer
 import com.tom_roush.pdfbox.util.Matrix
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -189,6 +194,55 @@ class PdfBridge(
     override fun startUnlock(uri: String, password: String, outputUri: String, taskId: String) {
         runTask(taskId) { cancelled ->
             runUnlock(uri, password, outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startRenderPage(uri: String, pageIndex: Long, dpi: Long, taskId: String) {
+        runTask(taskId) { cancelled ->
+            runRenderPage(uri, pageIndex.toInt(), dpi.toInt(), taskId, cancelled)
+        }
+    }
+
+    override fun startStampImage(
+        uri: String,
+        imageUri: String,
+        pageNumber: Long,
+        x: Double,
+        y: Double,
+        widthFraction: Double,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runStampImage(
+                uri, imageUri, pageNumber.toInt(),
+                x.toFloat(), y.toFloat(), widthFraction.toFloat(),
+                outputUri, taskId, cancelled,
+            )
+        }
+    }
+
+    override fun startAnnotate(
+        uri: String,
+        pageNumber: Long,
+        strokes: List<InkStroke>,
+        rects: List<RectMark>,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runAnnotate(uri, pageNumber.toInt(), strokes, rects, outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startRedact(
+        uri: String,
+        marks: List<RedactionMark>,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runRedact(uri, marks, outputUri, taskId, cancelled)
         }
     }
 
@@ -674,6 +728,349 @@ class PdfBridge(
             } ?: throw FlutterError("io_error", "Cannot write output", null)
             postProgress(taskId, 1.0)
         }
+    }
+
+    /// Renders one zero-based page and ships the JPEG bytes to Flutter.
+    private fun runRenderPage(
+        uri: String,
+        pageIndex: Int,
+        dpi: Int,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("render-page")
+        val clampedDpi = dpi.coerceIn(48, 300)
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                checkCancellation(cancelled)
+                if (pageIndex < 0 || pageIndex >= doc.numberOfPages) {
+                    throw FlutterError("invalid_input", "Page out of range", null)
+                }
+                val bitmap = PDFRenderer(doc).renderImageWithDPI(
+                    pageIndex, clampedDpi.toFloat(), ImageType.RGB
+                )
+                val out = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                bitmap.recycle()
+                postEvent { events.onImageResult(taskId, out.toByteArray()) {} }
+            }
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    /// Stamps [imageUri] onto one-based [pageNumber] at normalized (x, y)
+    /// with [widthFraction] of the rendered page width.
+    private fun runStampImage(
+        uri: String,
+        imageUri: String,
+        pageNumber: Int,
+        x: Float,
+        y: Float,
+        widthFraction: Float,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("stamp-image")
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        val source = resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+        val staged = stageImage(Uri.parse(imageUri), 0)
+        try {
+            val pageCount = source.numberOfPages
+            if (pageNumber < 1 || pageNumber > pageCount) {
+                throw FlutterError("invalid_input", "Page out of range", null)
+            }
+            checkCancellation(cancelled)
+            val page = source.getPage(pageNumber - 1)
+            val rotation = ((page.rotation % 360) + 360) % 360
+            val box = page.mediaBox
+            val (renderW, renderH) = renderedSize(box, rotation)
+
+            val xobject = PDImageXObject.createFromFileByExtension(staged, source)
+            var stampW = widthFraction.coerceIn(0.01f, 1f) * renderW
+            val stampH = stampW * xobject.height / xobject.width
+            // Keep the stamp fully on the page.
+            if (stampH > renderH) {
+                stampW = stampW * renderH / stampH
+            }
+            val clamped = clampedSize(stampW, stampH.coerceAtMost(renderH), renderW, renderH, x, y)
+            val rx0 = clamped.first
+            val ry0 = clamped.second
+            val finalH = stampW * xobject.height / xobject.width
+
+            PDPageContentStream(
+                source, page, PDPageContentStream.AppendMode.APPEND, true, true
+            ).use { stream ->
+                // Map the image's unit square through render space (top-left
+                // origin, y down) into PDF user space, honoring page rotation.
+                val unitToRender = Matrix(
+                    stampW, 0f, 0f, -finalH, rx0, ry0 + finalH
+                )
+                stream.transform(unitToRender.multiply(renderToUser(rotation, box)))
+                stream.drawImage(xobject, 0f, 0f, 1f, 1f)
+            }
+            checkCancellation(cancelled)
+            resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
+                source.save(out)
+            } ?: throw FlutterError("io_error", "Cannot write output", null)
+            postProgress(taskId, 1.0)
+        } finally {
+            staged.delete()
+            try {
+                source.close()
+            } catch (ignored: Exception) {
+                // Cleanup only.
+            }
+        }
+    }
+
+    /// Draws ink strokes and rectangle marks into one-based [pageNumber]'s
+    /// content stream; coordinates are normalized against the rendered page.
+    private fun runAnnotate(
+        uri: String,
+        pageNumber: Int,
+        strokes: List<InkStroke>,
+        rects: List<RectMark>,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("annotate")
+        if (strokes.isEmpty() && rects.isEmpty()) {
+            throw FlutterError("invalid_input", "Nothing to draw", null)
+        }
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                val pageCount = doc.numberOfPages
+                if (pageNumber < 1 || pageNumber > pageCount) {
+                    throw FlutterError("invalid_input", "Page out of range", null)
+                }
+                checkCancellation(cancelled)
+                val page = doc.getPage(pageNumber - 1)
+                val rotation = ((page.rotation % 360) + 360) % 360
+                val box = page.mediaBox
+                val (renderW, renderH) = renderedSize(box, rotation)
+
+                PDPageContentStream(
+                    doc, page, PDPageContentStream.AppendMode.APPEND, true, true
+                ).use { stream ->
+                    stream.setLineCapStyle(1) // round caps
+                    for (stroke in strokes) {
+                        checkCancellation(cancelled)
+                        if (stroke.points.size < 4) continue
+                        val (r, g, b) = rgb(stroke.colorRgb.toInt())
+                        stream.setStrokingColor(r, g, b)
+                        stream.setLineWidth(
+                            (stroke.width.toFloat() * minOf(renderW, renderH))
+                                .coerceIn(0.5f, 40f)
+                        )
+                        var first = true
+                        for (i in stroke.points.indices step 2) {
+                            if (i + 1 >= stroke.points.size) break
+                            val (ux, uy) = toUserSpace(
+                                stroke.points[i].toFloat() * renderW,
+                                stroke.points[i + 1].toFloat() * renderH,
+                                rotation, box,
+                            )
+                            if (first) {
+                                stream.moveTo(ux, uy)
+                                first = false
+                            } else {
+                                stream.lineTo(ux, uy)
+                            }
+                        }
+                        stream.stroke()
+                    }
+                    for (rect in rects) {
+                        checkCancellation(cancelled)
+                        val (r, g, b) = rgb(rect.colorRgb.toInt())
+                        val corners = listOf(
+                            toUserSpace(rect.left.toFloat() * renderW, rect.top.toFloat() * renderH, rotation, box),
+                            toUserSpace(rect.right.toFloat() * renderW, rect.top.toFloat() * renderH, rotation, box),
+                            toUserSpace(rect.right.toFloat() * renderW, rect.bottom.toFloat() * renderH, rotation, box),
+                            toUserSpace(rect.left.toFloat() * renderW, rect.bottom.toFloat() * renderH, rotation, box),
+                        )
+                        val minX = corners.minOf { it.first }
+                        val maxX = corners.maxOf { it.first }
+                        val minY = corners.minOf { it.second }
+                        val maxY = corners.maxOf { it.second }
+                        if (rect.mode == "highlight") {
+                            val state = PDExtendedGraphicsState()
+                            state.nonStrokingAlphaConstant = 0.35f
+                            stream.setGraphicsStateParameters(state)
+                            stream.setNonStrokingColor(r, g, b)
+                            stream.addRect(minX, minY, maxX - minX, maxY - minY)
+                            stream.fill()
+                            val solid = PDExtendedGraphicsState()
+                            solid.nonStrokingAlphaConstant = 1f
+                            stream.setGraphicsStateParameters(solid)
+                        } else {
+                            stream.setStrokingColor(r, g, b)
+                            stream.setLineWidth(1.5f)
+                            stream.addRect(minX, minY, maxX - minX, maxY - minY)
+                            stream.stroke()
+                        }
+                    }
+                }
+                checkCancellation(cancelled)
+                resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
+                    doc.save(out)
+                } ?: throw FlutterError("io_error", "Cannot write output", null)
+                postProgress(taskId, 1.0)
+            }
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    /// True redaction: marked pages are re-rendered, the rectangles burned
+    /// in as solid black, and the page replaced by that raster. Untouched
+    /// pages are copied through unchanged.
+    private fun runRedact(
+        uri: String,
+        marks: List<RedactionMark>,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("redact")
+        if (marks.isEmpty()) {
+            throw FlutterError("invalid_input", "No areas selected", null)
+        }
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        val source = resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+
+        val destination = PDDocument()
+        val temp = File(context.cacheDir, "siliph-redact-$taskId.jpg")
+        try {
+            val pageCount = source.numberOfPages
+            val byPage = marks.groupBy { it.pageIndex.toInt() }
+            val renderer = PDFRenderer(source)
+            for (index in 0 until pageCount) {
+                checkCancellation(cancelled)
+                val pageMarks = byPage[index]
+                if (pageMarks.isNullOrEmpty()) {
+                    // importPage shares resources: source stays open till save.
+                    destination.importPage(source.getPage(index))
+                    postProgress(taskId, (index + 1).toDouble() / (pageCount + 1))
+                    continue
+                }
+                val bitmap = renderer.renderImageWithDPI(index, 200f, ImageType.RGB)
+                val canvas = Canvas(bitmap)
+                val paint = Paint().apply { color = Color.BLACK }
+                for (mark in pageMarks) {
+                    val left = (mark.left.toFloat().coerceIn(0f, 1f)) * bitmap.width
+                    val top = (mark.top.toFloat().coerceIn(0f, 1f)) * bitmap.height
+                    val right = (mark.right.toFloat().coerceIn(0f, 1f)) * bitmap.width
+                    val bottom = (mark.bottom.toFloat().coerceIn(0f, 1f)) * bitmap.height
+                    canvas.drawRect(
+                        minOf(left, right), minOf(top, bottom),
+                        maxOf(left, right), maxOf(top, bottom), paint,
+                    )
+                }
+                FileOutputStream(temp).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                bitmap.recycle()
+                val xobject = PDImageXObject.createFromFileByExtension(temp, destination)
+                val page = PDPage(
+                    PDRectangle(xobject.width.toFloat(), xobject.height.toFloat())
+                )
+                destination.addPage(page)
+                PDPageContentStream(destination, page).use { stream ->
+                    stream.drawImage(
+                        xobject, 0f, 0f,
+                        xobject.width.toFloat(), xobject.height.toFloat(),
+                    )
+                }
+                postProgress(taskId, (index + 1).toDouble() / (pageCount + 1))
+            }
+            checkCancellation(cancelled)
+            resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
+                destination.save(out)
+            } ?: throw FlutterError("io_error", "Cannot write output", null)
+            postProgress(taskId, 1.0)
+        } finally {
+            temp.delete()
+            try {
+                destination.close()
+            } catch (ignored: Exception) {
+                // Cleanup only.
+            }
+            try {
+                source.close()
+            } catch (ignored: Exception) {
+                // Cleanup only.
+            }
+        }
+    }
+
+    /// Rendered page size in points for a given /Rotate value.
+    private fun renderedSize(box: PDRectangle, rotation: Int): Pair<Float, Float> {
+        return if (rotation == 90 || rotation == 270) {
+            box.height to box.width
+        } else {
+            box.width to box.height
+        }
+    }
+
+    /// Maps a render-space point (top-left origin, y down, points) into PDF
+    /// user space, honoring the page's /Rotate.
+    private fun toUserSpace(
+        rx: Float,
+        ry: Float,
+        rotation: Int,
+        box: PDRectangle,
+    ): Pair<Float, Float> {
+        val w = box.width
+        val h = box.height
+        return when (rotation) {
+            90 -> ry to rx
+            180 -> (w - rx) to ry
+            270 -> (w - ry) to (h - rx)
+            else -> rx to (h - ry)
+        }
+    }
+
+    /// Render-space -> user-space matrix (used for image stamps).
+    private fun renderToUser(rotation: Int, box: PDRectangle): Matrix {
+        val w = box.width
+        val h = box.height
+        return when (rotation) {
+            90 -> Matrix(0f, 1f, 1f, 0f, 0f, 0f)
+            180 -> Matrix(-1f, 0f, 0f, 1f, w, 0f)
+            270 -> Matrix(0f, -1f, -1f, 0f, w, h)
+            else -> Matrix(1f, 0f, 0f, -1f, 0f, h)
+        }
+    }
+
+    /// Clamps a stamp's top-left so the whole stamp stays on the page.
+    private fun clampedSize(
+        stampW: Float,
+        stampH: Float,
+        renderW: Float,
+        renderH: Float,
+        x: Float,
+        y: Float,
+    ): Pair<Float, Float> {
+        val rx = (x.coerceIn(0f, 1f) * renderW).coerceAtMost((renderW - stampW).coerceAtLeast(0f))
+        val ry = (y.coerceIn(0f, 1f) * renderH).coerceAtMost((renderH - stampH).coerceAtLeast(0f))
+        return rx to ry
+    }
+
+    private fun rgb(colorRgb: Int): Triple<Float, Float, Float> {
+        return Triple(
+            Color.red(colorRgb) / 255f,
+            Color.green(colorRgb) / 255f,
+            Color.blue(colorRgb) / 255f,
+        )
     }
 
     /// Display name for output naming; empty when unreadable.

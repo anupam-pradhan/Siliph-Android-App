@@ -93,6 +93,9 @@ final List<ToolDefinition> _catalog = [
     keywords: {'open', 'read', 'view', 'search'},
     aliases: {'open pdf', 'read pdf'},
     sortPriority: 100,
+    // Page-by-page native rendering with pinch zoom; search is not
+    // implemented yet (honest scope).
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'merge-pdf',
@@ -196,6 +199,8 @@ final List<ToolDefinition> _catalog = [
     category: ToolCategory.pdf,
     icon: Icons.draw_outlined,
     keywords: {'signature', 'sign', 'esign'},
+    // Image stamp placed on one page; visible signature, not cryptographic.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'annotate-pdf',
@@ -204,6 +209,9 @@ final List<ToolDefinition> _catalog = [
     category: ToolCategory.pdf,
     icon: Icons.edit_note_outlined,
     keywords: {'highlight', 'draw', 'note', 'markup'},
+    // Pen/highlight/box marks baked into the page content stream; text
+    // stays selectable.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'watermark-pdf',
@@ -243,6 +251,9 @@ final List<ToolDefinition> _catalog = [
     category: ToolCategory.security,
     icon: Icons.visibility_off_outlined,
     keywords: {'censor', 'hide', 'remove', 'blackout'},
+    // True burn-in: marked pages are re-rendered with black boxes and
+    // rebuilt, so covered pixels are gone for good.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'pdf-metadata',
@@ -345,6 +356,8 @@ final List<ToolDefinition> _catalog = [
     aliases: {'scan paper', 'document scan', 'camera pdf'},
     requiresCamera: true,
     sortPriority: 95,
+    // System camera capture -> one PDF via the images-to-pdf engine.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'scan-receipt',
@@ -354,6 +367,8 @@ final List<ToolDefinition> _catalog = [
     icon: Icons.receipt_long_outlined,
     keywords: {'receipt', 'bill', 'scan'},
     requiresCamera: true,
+    // Camera capture -> PDF; no contrast enhancement (honest scope).
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'scan-id',
@@ -363,6 +378,8 @@ final List<ToolDefinition> _catalog = [
     icon: Icons.badge_outlined,
     keywords: {'id', 'card', 'scan'},
     requiresCamera: true,
+    // Front/back camera capture -> PDF; no auto-crop (honest scope).
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'scan-book',
@@ -372,6 +389,8 @@ final List<ToolDefinition> _catalog = [
     icon: Icons.auto_stories_outlined,
     keywords: {'book', 'pages', 'scan'},
     requiresCamera: true,
+    // Camera capture -> PDF; no curvature correction (honest scope).
+    availability: ToolAvailability.ready,
   ),
 
   // --- OCR ----------------------------------------------------------------
@@ -384,6 +403,8 @@ final List<ToolDefinition> _catalog = [
     keywords: {'text', 'extract', 'recognize', 'ocr'},
     aliases: {'extract text', 'read text from image'},
     sortPriority: 90,
+    // Bundled on-device ML Kit Latin recognizer.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'ocr-pdf',
@@ -392,6 +413,8 @@ final List<ToolDefinition> _catalog = [
     category: ToolCategory.ocr,
     icon: Icons.text_snippet_outlined,
     keywords: {'text', 'pdf', 'extract'},
+    // Per-page render + on-device recognition.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'searchable-pdf',
@@ -400,6 +423,8 @@ final List<ToolDefinition> _catalog = [
     category: ToolCategory.ocr,
     icon: Icons.manage_search_outlined,
     keywords: {'text layer', 'search', 'ocr'},
+    // Image pages + invisible OCR text layer; selection is approximate.
+    availability: ToolAvailability.ready,
   ),
 
   // --- Files --------------------------------------------------------------
@@ -526,6 +551,8 @@ final List<ToolDefinition> _catalog = [
     icon: Icons.qr_code_scanner_outlined,
     keywords: {'qr', 'barcode', 'scan'},
     requiresCamera: true,
+    // Photo/gallery image -> bundled ML Kit barcode decoder.
+    availability: ToolAvailability.ready,
   ),
   _tool(
     id: 'qr-generate',

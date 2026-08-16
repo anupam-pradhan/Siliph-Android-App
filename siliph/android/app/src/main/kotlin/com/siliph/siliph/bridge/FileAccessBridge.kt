@@ -8,8 +8,12 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * SAF + Photo Picker file intake/export (master prompt sections 60, 180).
@@ -202,6 +206,31 @@ class FileAccessBridge(
         }
     }
 
+    override fun requestTakePhoto() {
+        val dir = File(activity.cacheDir, "captures")
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw FlutterError("io_error", "Cannot prepare capture storage", null)
+        }
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val target = File(dir, "capture-$stamp.jpg")
+        val shared = FileProvider.getUriForFile(
+            activity, "${activity.packageName}.fileprovider", target
+        )
+        pendingCaptureFile = target
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, shared)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        if (intent.resolveActivity(activity.packageManager) == null) {
+            pendingCaptureFile = null
+            throw FlutterError(
+                "not_supported", "No camera app is available on this device", null
+            )
+        }
+        activity.startActivityForResult(intent, REQ_TAKE_PHOTO)
+    }
+
     override fun tempDirectory(): String {
         val dir = File(activity.cacheDir, "workspace")
         if (!dir.exists() && !dir.mkdirs()) {
@@ -234,6 +263,39 @@ class FileAccessBridge(
                 if (uri != null) persistPermissions(uri)
                 results.onPickFolderResult(uri?.toString()) {}
             }
+            REQ_TAKE_PHOTO -> {
+                val target = pendingCaptureFile
+                pendingCaptureFile = null
+                if (resultCode != Activity.RESULT_OK || target == null) {
+                    target?.delete()
+                    results.onCameraResult(null) {}
+                    return
+                }
+                // Most cameras honor EXTRA_OUTPUT; a few return the shot
+                // in the result instead — copy that stream into our file.
+                if (!target.exists() || target.length() == 0L) {
+                    val returned = data?.data
+                    if (returned != null) {
+                        try {
+                            activity.contentResolver.openInputStream(returned)
+                                ?.use { input ->
+                                    target.outputStream().use { input.copyTo(it) }
+                                }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Camera result copy failed", e)
+                        }
+                    }
+                }
+                if (!target.exists() || target.length() == 0L) {
+                    target.delete()
+                    results.onCameraResult(null) {}
+                    return
+                }
+                val uri = FileProvider.getUriForFile(
+                    activity, "${activity.packageName}.fileprovider", target
+                )
+                results.onCameraResult(metaFor(uri)) {}
+            }
         }
     }
 
@@ -244,6 +306,8 @@ class FileAccessBridge(
         val clip = data.clipData ?: return emptyList()
         return (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
     }
+
+    private var pendingCaptureFile: File? = null
 
     /// Resolves the parent document URI of [docUri] via findDocumentPath.
     /// Returns null when the provider cannot describe the path.
@@ -342,5 +406,6 @@ class FileAccessBridge(
         private const val REQ_PICK_IMAGES = 4102
         private const val REQ_CREATE_DOCUMENT = 4103
         private const val REQ_PICK_FOLDER = 4104
+        private const val REQ_TAKE_PHOTO = 4105
     }
 }

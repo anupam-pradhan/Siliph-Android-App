@@ -50,5 +50,11 @@ flutter {
 dependencies {
     // PDF engine (Apache-2.0). Same artifact as the Pdf_Tools reference so
     // reuse records stay accurate. See docs/licenses.md.
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.tom_roush:pdfbox-android:2.0.27.0")
+    // Bundled ML Kit builds: models ship inside the APK, no Google Play
+    // services required (Apache-2.0). See docs/licenses.md.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // FileProvider for sharing app-owned capture files with the camera app.
+    implementation("androidx.core:core-ktx:1.13.1")
 }

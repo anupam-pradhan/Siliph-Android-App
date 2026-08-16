@@ -52,6 +52,9 @@ Future<void> _waitUntil(
   await tester.runAsync(() async {
     for (var i = 0; i < 200; i++) {
       await tester.pump(const Duration(milliseconds: 50));
+      // Give the event loop a real turn: engine raster callbacks are
+      // not delivered while only pumping frames.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
       if (isDone()) return;
     }
   });

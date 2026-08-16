@@ -519,6 +519,284 @@ data class ImageFacts (
     return "ImageFacts(width=$width, height=$height, format=$format, sizeBytes=$sizeBytes)"
   }
 }
+
+/**
+ * A decoded QR code or barcode.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class BarcodeResult (
+  val rawValue: String,
+  val format: String
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): BarcodeResult {
+      val rawValue = pigeonVar_list[0] as String
+      val format = pigeonVar_list[1] as String
+      return BarcodeResult(rawValue, format)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      rawValue,
+      format,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as BarcodeResult
+    return SiliphBridgePigeonUtils.deepEquals(this.rawValue, other.rawValue) && SiliphBridgePigeonUtils.deepEquals(this.format, other.format)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.rawValue)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.format)
+    return result
+  }
+  override fun toString(): String {
+    return "BarcodeResult(rawValue=$rawValue, format=$format)"
+  }
+}
+
+/**
+ * One recognized text block. Bounds are normalized (0..1) against the
+ * source image; [pageIndex] is the zero-based PDF page it came from (0
+ * for single-image OCR).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class OcrBlock (
+  val text: String,
+  val pageIndex: Long,
+  val left: Double,
+  val top: Double,
+  val right: Double,
+  val bottom: Double
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): OcrBlock {
+      val text = pigeonVar_list[0] as String
+      val pageIndex = pigeonVar_list[1] as Long
+      val left = pigeonVar_list[2] as Double
+      val top = pigeonVar_list[3] as Double
+      val right = pigeonVar_list[4] as Double
+      val bottom = pigeonVar_list[5] as Double
+      return OcrBlock(text, pageIndex, left, top, right, bottom)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      text,
+      pageIndex,
+      left,
+      top,
+      right,
+      bottom,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as OcrBlock
+    return SiliphBridgePigeonUtils.deepEquals(this.text, other.text) && SiliphBridgePigeonUtils.deepEquals(this.pageIndex, other.pageIndex) && SiliphBridgePigeonUtils.deepEquals(this.left, other.left) && SiliphBridgePigeonUtils.deepEquals(this.top, other.top) && SiliphBridgePigeonUtils.deepEquals(this.right, other.right) && SiliphBridgePigeonUtils.deepEquals(this.bottom, other.bottom)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.text)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.pageIndex)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.left)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.top)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.right)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.bottom)
+    return result
+  }
+  override fun toString(): String {
+    return "OcrBlock(text=$text, pageIndex=$pageIndex, left=$left, top=$top, right=$right, bottom=$bottom)"
+  }
+}
+
+/**
+ * A freehand ink stroke drawn on a rendered page. [points] are flattened
+ * normalized x,y pairs; [colorRgb] is 0xRRGGBB; [width] is a fraction of
+ * the page's shortest side.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class InkStroke (
+  val points: List<Double>,
+  val colorRgb: Long,
+  val width: Double
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): InkStroke {
+      val points = pigeonVar_list[0] as List<Double>
+      val colorRgb = pigeonVar_list[1] as Long
+      val width = pigeonVar_list[2] as Double
+      return InkStroke(points, colorRgb, width)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      points,
+      colorRgb,
+      width,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as InkStroke
+    return SiliphBridgePigeonUtils.deepEquals(this.points, other.points) && SiliphBridgePigeonUtils.deepEquals(this.colorRgb, other.colorRgb) && SiliphBridgePigeonUtils.deepEquals(this.width, other.width)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.points)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.colorRgb)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.width)
+    return result
+  }
+  override fun toString(): String {
+    return "InkStroke(points=$points, colorRgb=$colorRgb, width=$width)"
+  }
+}
+
+/**
+ * A rectangle mark on a rendered page (highlight or outline box),
+ * normalized 0..1 against the rendered page.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class RectMark (
+  val left: Double,
+  val top: Double,
+  val right: Double,
+  val bottom: Double,
+  val colorRgb: Long,
+  val mode: String
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): RectMark {
+      val left = pigeonVar_list[0] as Double
+      val top = pigeonVar_list[1] as Double
+      val right = pigeonVar_list[2] as Double
+      val bottom = pigeonVar_list[3] as Double
+      val colorRgb = pigeonVar_list[4] as Long
+      val mode = pigeonVar_list[5] as String
+      return RectMark(left, top, right, bottom, colorRgb, mode)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      left,
+      top,
+      right,
+      bottom,
+      colorRgb,
+      mode,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as RectMark
+    return SiliphBridgePigeonUtils.deepEquals(this.left, other.left) && SiliphBridgePigeonUtils.deepEquals(this.top, other.top) && SiliphBridgePigeonUtils.deepEquals(this.right, other.right) && SiliphBridgePigeonUtils.deepEquals(this.bottom, other.bottom) && SiliphBridgePigeonUtils.deepEquals(this.colorRgb, other.colorRgb) && SiliphBridgePigeonUtils.deepEquals(this.mode, other.mode)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.left)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.top)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.right)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.bottom)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.colorRgb)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.mode)
+    return result
+  }
+  override fun toString(): String {
+    return "RectMark(left=$left, top=$top, right=$right, bottom=$bottom, colorRgb=$colorRgb, mode=$mode)"
+  }
+}
+
+/**
+ * A redaction rectangle on one page, normalized 0..1.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class RedactionMark (
+  val pageIndex: Long,
+  val left: Double,
+  val top: Double,
+  val right: Double,
+  val bottom: Double
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): RedactionMark {
+      val pageIndex = pigeonVar_list[0] as Long
+      val left = pigeonVar_list[1] as Double
+      val top = pigeonVar_list[2] as Double
+      val right = pigeonVar_list[3] as Double
+      val bottom = pigeonVar_list[4] as Double
+      return RedactionMark(pageIndex, left, top, right, bottom)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      pageIndex,
+      left,
+      top,
+      right,
+      bottom,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as RedactionMark
+    return SiliphBridgePigeonUtils.deepEquals(this.pageIndex, other.pageIndex) && SiliphBridgePigeonUtils.deepEquals(this.left, other.left) && SiliphBridgePigeonUtils.deepEquals(this.top, other.top) && SiliphBridgePigeonUtils.deepEquals(this.right, other.right) && SiliphBridgePigeonUtils.deepEquals(this.bottom, other.bottom)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.pageIndex)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.left)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.top)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.right)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.bottom)
+    return result
+  }
+  override fun toString(): String {
+    return "RedactionMark(pageIndex=$pageIndex, left=$left, top=$top, right=$right, bottom=$bottom)"
+  }
+}
 private open class SiliphBridgePigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -552,6 +830,31 @@ private open class SiliphBridgePigeonCodec : StandardMessageCodec() {
           ImageFacts.fromList(it)
         }
       }
+      135.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          BarcodeResult.fromList(it)
+        }
+      }
+      136.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          OcrBlock.fromList(it)
+        }
+      }
+      137.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          InkStroke.fromList(it)
+        }
+      }
+      138.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          RectMark.fromList(it)
+        }
+      }
+      139.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          RedactionMark.fromList(it)
+        }
+      }
       else -> super.readValueOfType(type, buffer)
     }
   }
@@ -579,6 +882,26 @@ private open class SiliphBridgePigeonCodec : StandardMessageCodec() {
       }
       is ImageFacts -> {
         stream.write(134)
+        writeValue(stream, value.toList())
+      }
+      is BarcodeResult -> {
+        stream.write(135)
+        writeValue(stream, value.toList())
+      }
+      is OcrBlock -> {
+        stream.write(136)
+        writeValue(stream, value.toList())
+      }
+      is InkStroke -> {
+        stream.write(137)
+        writeValue(stream, value.toList())
+      }
+      is RectMark -> {
+        stream.write(138)
+        writeValue(stream, value.toList())
+      }
+      is RedactionMark -> {
+        stream.write(139)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -638,6 +961,13 @@ interface FileAccessApi {
   fun shareDocument(uri: String, mimeType: String)
   /** Releases a persisted URI permission we no longer need. */
   fun releasePersistablePermission(uri: String): Boolean
+  /**
+   * Launches the system camera app (ACTION_IMAGE_CAPTURE). The shot is
+   * stored in app-owned storage and delivered through
+   * [FileResultsApi.onCameraResult] (null when the user cancels). No
+   * camera permission is needed because the camera app does the capture.
+   */
+  fun requestTakePhoto()
   /** App-owned cache workspace for intermediate files (section 5 boundary). */
   fun tempDirectory(): String
 
@@ -846,6 +1176,22 @@ interface FileAccessApi {
         }
       }
       run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileAccessApi.requestTakePhoto$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.requestTakePhoto()
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileAccessApi.tempDirectory$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
@@ -910,6 +1256,34 @@ interface PdfApi {
    * [TaskEventsApi.onFilesResult] before [TaskEventsApi.onComplete].
    */
   fun startPdfToImages(uri: String, dpi: Long, folderTreeUri: String, taskId: String)
+  /**
+   * Renders the zero-based [pageIndex] of [uri] at [dpi] and delivers the
+   * JPEG bytes through [TaskEventsApi.onImageResult] before
+   * [TaskEventsApi.onComplete]. Throws `invalid_input` when the page index
+   * is out of range.
+   */
+  fun startRenderPage(uri: String, pageIndex: Long, dpi: Long, taskId: String)
+  /**
+   * Stamps the image at [imageUri] onto one-based [pageNumber] of [uri].
+   * [x]/[y] are the top-left position normalized 0..1 against the
+   * rendered page; [widthFraction] is the stamp width relative to the
+   * page width, height follows the image's aspect ratio. The original
+   * content stays intact: the stamp is a new image object on top.
+   */
+  fun startStampImage(uri: String, imageUri: String, pageNumber: Long, x: Double, y: Double, widthFraction: Double, outputUri: String, taskId: String)
+  /**
+   * Draws freehand [strokes] and rectangle [rects] (normalized against
+   * the rendered page) directly into one-based [pageNumber]'s content
+   * stream, so the page's original text stays selectable.
+   */
+  fun startAnnotate(uri: String, pageNumber: Long, strokes: List<InkStroke>, rects: List<RectMark>, outputUri: String, taskId: String)
+  /**
+   * Permanently removes content under each [marks] rectangle: affected
+   * pages are re-rendered, the rectangles burned in as black, and the
+   * page replaced by that image. Pages without marks are copied
+   * unchanged.
+   */
+  fun startRedact(uri: String, marks: List<RedactionMark>, outputUri: String, taskId: String)
   /**
    * Overlays [text] on every page. [position]: `diagonal`, `bottom`,
    * `top`.
@@ -1117,6 +1491,96 @@ interface PdfApi {
         }
       }
       run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startRenderPage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val pageIndexArg = args[1] as Long
+            val dpiArg = args[2] as Long
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startRenderPage(uriArg, pageIndexArg, dpiArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startStampImage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val imageUriArg = args[1] as String
+            val pageNumberArg = args[2] as Long
+            val xArg = args[3] as Double
+            val yArg = args[4] as Double
+            val widthFractionArg = args[5] as Double
+            val outputUriArg = args[6] as String
+            val taskIdArg = args[7] as String
+            val wrapped: List<Any?> = try {
+              api.startStampImage(uriArg, imageUriArg, pageNumberArg, xArg, yArg, widthFractionArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startAnnotate$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val pageNumberArg = args[1] as Long
+            val strokesArg = args[2] as List<InkStroke>
+            val rectsArg = args[3] as List<RectMark>
+            val outputUriArg = args[4] as String
+            val taskIdArg = args[5] as String
+            val wrapped: List<Any?> = try {
+              api.startAnnotate(uriArg, pageNumberArg, strokesArg, rectsArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startRedact$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val marksArg = args[1] as List<RedactionMark>
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startRedact(uriArg, marksArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startWatermark$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
@@ -1236,6 +1700,12 @@ interface FileToolsApi {
    * is fast; throws `invalid_input` when the content is empty or too long.
    */
   fun generateQr(content: String, ecLevel: Long, outputUri: String)
+  /**
+   * Decodes the first QR code / barcode found in the image at [uri].
+   * The result arrives through [TaskEventsApi.onBarcodeResult] before
+   * [TaskEventsApi.onComplete]; when nothing decodes, rawValue is empty.
+   */
+  fun startScanBarcode(uri: String, taskId: String)
   /** Requests cancellation of a running task. Safe when unknown. */
   fun cancel(taskId: String)
 
@@ -1336,6 +1806,25 @@ interface FileToolsApi {
             val outputUriArg = args[2] as String
             val wrapped: List<Any?> = try {
               api.generateQr(contentArg, ecLevelArg, outputUriArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileToolsApi.startScanBarcode$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val taskIdArg = args[1] as String
+            val wrapped: List<Any?> = try {
+              api.startScanBarcode(uriArg, taskIdArg)
               listOf(null)
             } catch (exception: Throwable) {
               SiliphBridgePigeonUtils.wrapError(exception)
@@ -1634,6 +2123,119 @@ interface ImageToolsApi {
   }
 }
 /**
+ * On-device text recognition backed by the bundled ML Kit recognizer.
+ *
+ * All operations report blocks through [TaskEventsApi.onOcrResult] before
+ * [TaskEventsApi.onComplete]; progress events track multi-page work.
+ *
+ * Generated interface from Pigeon that represents a handler of messages from Flutter.
+ */
+interface OcrApi {
+  /** Recognizes text in the image at [uri]; blocks carry pageIndex 0. */
+  fun startRecognizeImage(uri: String, taskId: String)
+  /**
+   * Renders every page of the PDF at [uri] and recognizes each one;
+   * blocks carry their zero-based page index.
+   */
+  fun startRecognizePdf(uri: String, taskId: String)
+  /**
+   * Builds a searchable copy of [uri] at [outputUri]: each page becomes
+   * its rendered image plus an invisible text layer from OCR. Text
+   * selection on the output is approximate.
+   */
+  fun startSearchablePdf(uri: String, outputUri: String, taskId: String)
+  /** Requests cancellation of a running task. Safe when unknown. */
+  fun cancel(taskId: String)
+
+  companion object {
+    /** The codec used by OcrApi. */
+    val codec: MessageCodec<Any?> by lazy {
+      SiliphBridgePigeonCodec()
+    }
+    /** Sets up an instance of `OcrApi` to handle messages through the `binaryMessenger`. */
+    @JvmOverloads
+    fun setUp(binaryMessenger: BinaryMessenger, api: OcrApi?, messageChannelSuffix: String = "") {
+      val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.OcrApi.startRecognizeImage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val taskIdArg = args[1] as String
+            val wrapped: List<Any?> = try {
+              api.startRecognizeImage(uriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.OcrApi.startRecognizePdf$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val taskIdArg = args[1] as String
+            val wrapped: List<Any?> = try {
+              api.startRecognizePdf(uriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.OcrApi.startSearchablePdf$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val outputUriArg = args[1] as String
+            val taskIdArg = args[2] as String
+            val wrapped: List<Any?> = try {
+              api.startSearchablePdf(uriArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.OcrApi.cancel$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val taskIdArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              api.cancel(taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+    }
+  }
+}
+/**
  * Native -> Flutter results for picker requests.
  *
  * Generated class from Pigeon that represents Flutter messages that can be called from Kotlin.
@@ -1702,6 +2304,24 @@ class FileResultsApi(private val binaryMessenger: BinaryMessenger, private val m
     val channelName = "dev.flutter.pigeon.siliph.FileResultsApi.onPickFolderResult$separatedMessageChannelSuffix"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
     channel.send(listOf(treeUriArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /** Result of a system-camera capture; null when cancelled. */
+  fun onCameraResult(fileArg: FileMeta?, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.FileResultsApi.onCameraResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(fileArg)) {
       if (it is List<*>) {
         if (it.size > 1) {
           callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
@@ -1826,6 +2446,64 @@ class TaskEventsApi(private val binaryMessenger: BinaryMessenger, private val me
     val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onStorageResult$separatedMessageChannelSuffix"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
     channel.send(listOf(taskIdArg, entriesArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /**
+   * Rendered page image (JPEG bytes) for single-page render tasks
+   * (reader / annotate / redact / sign previews). Delivered before
+   * [onComplete].
+   */
+  fun onImageResult(taskIdArg: String, bytesArg: ByteArray, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onImageResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(taskIdArg, bytesArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /** Decoded QR/barcode for scan tasks. Delivered before [onComplete]. */
+  fun onBarcodeResult(taskIdArg: String, resultArg: BarcodeResult, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onBarcodeResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(taskIdArg, resultArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /** Recognized text blocks for OCR tasks. Delivered before [onComplete]. */
+  fun onOcrResult(taskIdArg: String, blocksArg: List<OcrBlock>, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onOcrResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(taskIdArg, blocksArg)) {
       if (it is List<*>) {
         if (it.size > 1) {
           callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
