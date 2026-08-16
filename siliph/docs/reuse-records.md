@@ -243,3 +243,17 @@ Changes made:
 - POM groupId normalized to com.tom_roush to match the dependency
   coordinates; no binary changes to the AAR.
 Siliph destination: siliph/android/local-repo/com/tom_roush/pdfbox-android/2.0.27.0/
+
+## Record 12: PDF Page Numbering & On-Device AI Engine
+
+Source: Custom implementation following master build prompt v3 sections 17, 40, 41, 42.
+Original repository: n/a (built natively for Siliph)
+License: Apache-2.0 / MIT
+Features added:
+- PDF page numbering (`runAddPageNumbers`) using PDFBox content stream text overlay with position, margin, and format options.
+- On-device extractive NLP engine (`AiNlpEngine.analyzeText` and `AiNlpEngine.answerQuestion`) providing 100% offline executive summaries, key bullet points, entity detection (dates, emails, phones, URLs), and document chat with page citations.
+- PDF Text-To-Speech reader with sentence-level playback tracking and playback speed controls.
+Siliph destination: siliph/android/app/src/main/kotlin/com/siliph/siliph/bridge/PdfBridge.kt,
+siliph/lib/features/ai/, siliph/lib/features/pages/pdf_page_numbers_screen.dart,
+siliph/lib/features/reader/pdf_tts_screen.dart
+
