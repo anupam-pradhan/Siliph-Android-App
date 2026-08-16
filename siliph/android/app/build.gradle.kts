@@ -54,6 +54,10 @@ dependencies {
     // Bundled ML Kit builds: models ship inside the APK, no Google Play
     // services required (Apache-2.0). See docs/licenses.md.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Hindi (Devanagari) + Bengali bundled recognizers — offline OCR for
+    // Indian languages (sections 19, 192). Models ship inside the APK.
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+    implementation("com.google.mlkit:text-recognition-bengali:16.0.1")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     // FileProvider for sharing app-owned capture files with the camera app.
     implementation("androidx.core:core-ktx:1.13.1")

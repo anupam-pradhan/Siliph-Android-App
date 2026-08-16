@@ -54,6 +54,8 @@ class TaskHandle {
     this.image,
     this.barcode,
     this.ocrBlocks,
+    this.pageTexts,
+    this.searchFiles,
   }) : files = files ?? Future<List<String>>.value(const []);
 
   final String taskId;
@@ -84,6 +86,12 @@ class TaskHandle {
   /// Recognized text blocks for OCR tasks; null otherwise.
   final Future<List<OcrBlock>>? ocrBlocks;
 
+  /// Extracted per-page text for extract-text tasks; null otherwise.
+  final Future<List<PageText>>? pageTexts;
+
+  /// Matches for file-search tasks; null otherwise.
+  final Future<List<FileItem>>? searchFiles;
+
   /// Issues a cancellation request to the native engine.
   final Future<void> Function() onCancelTask;
 
@@ -101,6 +109,13 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
   Completer<FileMeta?>? _pendingCreate;
   Completer<String?>? _pendingFolder;
   Completer<FileMeta?>? _pendingCamera;
+
+  final StreamController<FileMeta> _incoming =
+      StreamController<FileMeta>.broadcast();
+
+  /// Files shared into Siliph by other apps while it is running
+  /// (section 45). Cold-start shares come via [FileGateway.getLaunchFile].
+  Stream<FileMeta> get incomingFiles => _incoming.stream;
 
   final Map<String, TaskState> _tasks = {};
 
@@ -168,6 +183,11 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
     final completer = _pendingCamera;
     _pendingCamera = null;
     if (completer != null && !completer.isCompleted) completer.complete(file);
+  }
+
+  @override
+  void onIncomingFile(FileMeta? file) {
+    if (file != null && !_incoming.isClosed) _incoming.add(file);
   }
 
   // -- TaskEventsApi -------------------------------------------------------
@@ -243,6 +263,22 @@ class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
       state.ocr.complete(blocks);
     }
   }
+
+  @override
+  void onTextResult(String taskId, List<PageText> pages) {
+    final state = _tasks[taskId];
+    if (state != null && !state.text.isCompleted) {
+      state.text.complete(pages);
+    }
+  }
+
+  @override
+  void onSearchResult(String taskId, List<FileMeta> files) {
+    final state = _tasks[taskId];
+    if (state != null && !state.search.isCompleted) {
+      state.search.complete(files);
+    }
+  }
 }
 
 /// Internal progress/completion state for one running task.
@@ -257,6 +293,8 @@ class TaskState {
   final Completer<Uint8List> image = Completer<Uint8List>();
   final Completer<BarcodeResult> barcode = Completer<BarcodeResult>();
   final Completer<List<OcrBlock>> ocr = Completer<List<OcrBlock>>();
+  final Completer<List<PageText>> text = Completer<List<PageText>>();
+  final Completer<List<FileMeta>> search = Completer<List<FileMeta>>();
 }
 
 /// File intake/export surface. Fakeable in tests.
@@ -297,6 +335,10 @@ abstract interface class FileGateway {
   /// Launches the system camera app; null when the user cancels. No
   /// camera permission needed: the camera app does the capture.
   Future<FileItem?> takePhoto();
+
+  /// Consumes the file Siliph was cold-started with (VIEW/SEND intent,
+  /// section 45). Null on normal launches; safe to call once at startup.
+  Future<FileItem?> getLaunchFile();
 }
 
 /// PDF engine surface. Fakeable in tests.
@@ -420,6 +462,53 @@ abstract interface class PdfGateway {
     required List<RedactionMark> marks,
     required FileItem output,
   });
+
+  /// Inserts every page of [insert] into [input] after one-based
+  /// [afterPage] (0 inserts before the first page).
+  TaskHandle insertPages({
+    required FileItem input,
+    required FileItem insert,
+    required int afterPage,
+    required FileItem output,
+  });
+
+  /// Replaces one-based pages starting at [startPage] of [input] with
+  /// every page of [replacement]; the run must fit inside the document.
+  TaskHandle replacePages({
+    required FileItem input,
+    required FileItem replacement,
+    required int startPage,
+    required FileItem output,
+  });
+
+  /// Extracts per-page text; results arrive on [TaskHandle.pageTexts].
+  TaskHandle extractText({required FileItem input});
+
+  /// Lists AcroForm fields; empty list when the PDF has no form.
+  Future<List<FormField>> listFormFields(FileItem file);
+
+  /// Fills form fields by name and saves a copy.
+  TaskHandle fillForm({
+    required FileItem input,
+    required List<FormFieldValue> values,
+    required FileItem output,
+  });
+
+  /// Flattens the form so values become static page content.
+  TaskHandle flattenForm({
+    required FileItem input,
+    required FileItem output,
+  });
+
+  /// Stamps [image] as a translucent watermark on every page;
+  /// [position] diagonal|top|bottom, [widthFraction] 0.05..0.9.
+  TaskHandle watermarkImage({
+    required FileItem input,
+    required FileItem image,
+    required String position,
+    required double widthFraction,
+    required FileItem output,
+  });
 }
 
 /// Live [FileGateway] over the generated [FileAccessApi].
@@ -518,6 +607,12 @@ class NativeFileGateway implements FileGateway {
     final meta = await completer.future;
     return meta == null ? null : FileItem.fromMeta(meta);
   }
+
+  @override
+  Future<FileItem?> getLaunchFile() async {
+    final meta = await _api.getLaunchFile();
+    return meta == null ? null : FileItem.fromMeta(meta);
+  }
 }
 
 /// Live [PdfGateway] over the generated [PdfApi].
@@ -535,6 +630,7 @@ class NativePdfGateway implements PdfGateway {
     Future<void> Function(String taskId) start, {
     bool withFiles = false,
     bool withImage = false,
+    bool withText = false,
   }) {
     final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
     final state = _router.registerTask(taskId);
@@ -545,6 +641,7 @@ class NativePdfGateway implements PdfGateway {
       done: state.done.future,
       files: withFiles ? state.files.future : null,
       image: withImage ? state.image.future : null,
+      pageTexts: withText ? state.text.future : null,
       onCancelTask: () => _api.cancel(taskId),
     );
   }
@@ -764,6 +861,87 @@ class NativePdfGateway implements PdfGateway {
         'redact',
         (taskId) => _api.startRedact(input.uri, marks, output.uri, taskId),
       );
+
+  @override
+  TaskHandle insertPages({
+    required FileItem input,
+    required FileItem insert,
+    required int afterPage,
+    required FileItem output,
+  }) =>
+      _run(
+        'insert-pages',
+        (taskId) => _api.startInsertPages(
+          input.uri, insert.uri, afterPage, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle replacePages({
+    required FileItem input,
+    required FileItem replacement,
+    required int startPage,
+    required FileItem output,
+  }) =>
+      _run(
+        'replace-pages',
+        (taskId) => _api.startReplacePages(
+          input.uri, replacement.uri, startPage, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle extractText({required FileItem input}) => _run(
+        'extract-text',
+        (taskId) => _api.startExtractText(input.uri, taskId),
+        withText: true,
+      );
+
+  @override
+  Future<List<FormField>> listFormFields(FileItem file) async {
+    try {
+      return await _api.listFormFields(file.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Form listing failed');
+    }
+  }
+
+  @override
+  TaskHandle fillForm({
+    required FileItem input,
+    required List<FormFieldValue> values,
+    required FileItem output,
+  }) =>
+      _run(
+        'fill-form',
+        (taskId) =>
+            _api.startFillForm(input.uri, values, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle flattenForm({
+    required FileItem input,
+    required FileItem output,
+  }) =>
+      _run(
+        'flatten-form',
+        (taskId) => _api.startFlattenForm(input.uri, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle watermarkImage({
+    required FileItem input,
+    required FileItem image,
+    required String position,
+    required double widthFraction,
+    required FileItem output,
+  }) =>
+      _run(
+        'watermark-image',
+        (taskId) => _api.startWatermarkImage(
+          input.uri, image.uri, position, widthFraction, output.uri, taskId,
+        ),
+      );
 }
 
 /// File utilities surface (ZIP, QR, folder analysis). Fakeable in tests.
@@ -800,6 +978,17 @@ abstract interface class FileToolsGateway {
   /// Decodes a QR/barcode from [image]; the result arrives on
   /// [TaskHandle.barcode] (empty [BarcodeResult.rawValue] = no match).
   TaskHandle scanBarcode({required FileItem image});
+
+  /// Lists the direct children of [folderUri] inside [treeUri], folders
+  /// first; entries carry [FileItem.isDirectory].
+  Future<List<FileItem>> listFolder({
+    required String treeUri,
+    required String folderUri,
+  });
+
+  /// Recursively searches [treeUri] by file name; matches arrive on
+  /// [TaskHandle.searchFiles] (capped at 500 results).
+  TaskHandle searchFiles({required String treeUri, required String query});
 }
 
 /// Live [FileToolsGateway] over the generated [FileToolsApi].
@@ -818,6 +1007,7 @@ class NativeFileToolsGateway implements FileToolsGateway {
     bool withDuplicates = false,
     bool withStorage = false,
     bool withBarcode = false,
+    bool withSearch = false,
   }) {
     final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
     final state = _router.registerTask(taskId);
@@ -830,6 +1020,11 @@ class NativeFileToolsGateway implements FileToolsGateway {
       duplicates: withDuplicates ? state.duplicates.future : null,
       storageEntries: withStorage ? state.storage.future : null,
       barcode: withBarcode ? state.barcode.future : null,
+      searchFiles: withSearch
+          ? state.search.future.then(
+              (metas) => metas.map(FileItem.fromMeta).toList(),
+            )
+          : null,
       onCancelTask: () => _api.cancel(taskId),
     );
   }
@@ -892,21 +1087,55 @@ class NativeFileToolsGateway implements FileToolsGateway {
         (taskId) => _api.startScanBarcode(image.uri, taskId),
         withBarcode: true,
       );
+
+  @override
+  Future<List<FileItem>> listFolder({
+    required String treeUri,
+    required String folderUri,
+  }) async {
+    try {
+      final metas = await _api.listFolder(treeUri, folderUri);
+      return metas.map(FileItem.fromMeta).toList();
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Folder listing failed');
+    }
+  }
+
+  @override
+  TaskHandle searchFiles({
+    required String treeUri,
+    required String query,
+  }) =>
+      _run(
+        'search-files',
+        (taskId) => _api.startSearchFiles(treeUri, query, taskId),
+        withSearch: true,
+      );
 }
 
 /// OCR surface (image/PDF recognition, searchable PDF). Fakeable in tests.
 abstract interface class OcrGateway {
   /// Recognizes text in [image]; blocks arrive on [TaskHandle.ocrBlocks].
-  TaskHandle recognizeImage({required FileItem image});
+  /// [language]: 'latin', 'devanagari' (Hindi) or 'bengali'.
+  TaskHandle recognizeImage({
+    required FileItem image,
+    String language = 'latin',
+  });
 
   /// Recognizes text on every page of [input]; blocks carry pageIndex.
-  TaskHandle recognizePdf({required FileItem input});
+  TaskHandle recognizePdf({
+    required FileItem input,
+    String language = 'latin',
+  });
 
   /// Rebuilds [input] as image pages with an invisible OCR text layer,
-  /// so the output is copy/search-able (approximate selection).
+  /// so the output is copy/search-able (approximate selection). Note:
+  /// the overlay font is WinAnsi, so non-Latin scripts appear as spaces
+  /// in the invisible layer (recognized text still exports fine).
   TaskHandle searchablePdf({
     required FileItem input,
     required FileItem output,
+    String language = 'latin',
   });
 }
 
@@ -937,16 +1166,24 @@ class NativeOcrGateway implements OcrGateway {
   }
 
   @override
-  TaskHandle recognizeImage({required FileItem image}) => _run(
+  TaskHandle recognizeImage({
+    required FileItem image,
+    String language = 'latin',
+  }) =>
+      _run(
         'ocr-image',
-        (taskId) => _api.startRecognizeImage(image.uri, taskId),
+        (taskId) => _api.startRecognizeImage(image.uri, language, taskId),
         withOcr: true,
       );
 
   @override
-  TaskHandle recognizePdf({required FileItem input}) => _run(
+  TaskHandle recognizePdf({
+    required FileItem input,
+    String language = 'latin',
+  }) =>
+      _run(
         'ocr-pdf',
-        (taskId) => _api.startRecognizePdf(input.uri, taskId),
+        (taskId) => _api.startRecognizePdf(input.uri, language, taskId),
         withOcr: true,
       );
 
@@ -954,11 +1191,13 @@ class NativeOcrGateway implements OcrGateway {
   TaskHandle searchablePdf({
     required FileItem input,
     required FileItem output,
+    String language = 'latin',
   }) =>
       _run(
         'searchable-pdf',
-        (taskId) =>
-            _api.startSearchablePdf(input.uri, output.uri, taskId),
+        (taskId) => _api.startSearchablePdf(
+          input.uri, language, output.uri, taskId,
+        ),
       );
 }
 
@@ -1023,6 +1262,39 @@ abstract interface class ImageToolsGateway {
   /// Writes small app-generated PNG bytes (e.g. a drawn signature) to
   /// [output]; throws for payloads over the native cap.
   Future<void> writeImageBytes({required FileItem output, required Uint8List png});
+
+  /// Rotates [input] clockwise by [degrees] (90/180/270).
+  TaskHandle rotate({
+    required FileItem input,
+    required int degrees,
+    required FileItem output,
+  });
+
+  /// Mirrors [input] horizontally or vertically.
+  TaskHandle flip({
+    required FileItem input,
+    required bool horizontal,
+    required FileItem output,
+  });
+
+  /// Suggests document corners (8 normalized values: TL, TR, BR, BL).
+  /// Empty list when no document-like region was detected. Approximate
+  /// by design — the UI lets the user adjust the corners.
+  Future<List<double>> detectCorners(FileItem image);
+
+  /// Warps the quad in [corners] (8 normalized values) to a rectangle.
+  TaskHandle perspectiveCrop({
+    required FileItem input,
+    required List<double> corners,
+    required FileItem output,
+  });
+
+  /// Scan enhancement; [mode] color|grayscale|bw|magic.
+  TaskHandle enhance({
+    required FileItem input,
+    required String mode,
+    required FileItem output,
+  });
 }
 
 /// Live [ImageToolsGateway] over the generated [ImageToolsApi].
@@ -1157,4 +1429,62 @@ class NativeImageToolsGateway implements ImageToolsGateway {
       throw BridgeException(e.code, e.message ?? 'Saving the image failed');
     }
   }
+
+  @override
+  TaskHandle rotate({
+    required FileItem input,
+    required int degrees,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-rotate',
+        (taskId) =>
+            _api.startRotateImage(input.uri, degrees, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle flip({
+    required FileItem input,
+    required bool horizontal,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-flip',
+        (taskId) =>
+            _api.startFlipImage(input.uri, horizontal, output.uri, taskId),
+      );
+
+  @override
+  Future<List<double>> detectCorners(FileItem image) async {
+    try {
+      return await _api.detectDocumentCorners(image.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Corner detection failed');
+    }
+  }
+
+  @override
+  TaskHandle perspectiveCrop({
+    required FileItem input,
+    required List<double> corners,
+    required FileItem output,
+  }) =>
+      _run(
+        'perspective-crop',
+        (taskId) => _api.startPerspectiveCrop(
+          input.uri, corners, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle enhance({
+    required FileItem input,
+    required String mode,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-enhance',
+        (taskId) =>
+            _api.startEnhanceImage(input.uri, mode, output.uri, taskId),
+      );
 }

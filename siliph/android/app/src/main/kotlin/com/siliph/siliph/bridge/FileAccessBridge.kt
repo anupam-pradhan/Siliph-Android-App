@@ -231,12 +231,62 @@ class FileAccessBridge(
         activity.startActivityForResult(intent, REQ_TAKE_PHOTO)
     }
 
+    override fun getLaunchFile(): FileMeta? {
+        // Consumes the VIEW/SEND intent the activity was launched with.
+        // Called once from Dart after the event router is attached, so the
+        // file cannot be lost to a race with onIncomingFile.
+        val payload = launchPayload
+        launchPayload = null
+        return payload?.let { describeIncoming(it) }
+    }
+
     override fun tempDirectory(): String {
         val dir = File(activity.cacheDir, "workspace")
         if (!dir.exists() && !dir.mkdirs()) {
             throw FlutterError("io_error", "Cannot create temp workspace", null)
         }
         return dir.absolutePath
+    }
+
+    /** Stores the VIEW/SEND payload from a cold-start launch intent. */
+    fun setLaunchIntent(intent: Intent?) {
+        launchPayload = incomingUri(intent)
+    }
+
+    /** Dispatches a VIEW/SEND intent received while the app is running. */
+    fun handleIncomingIntent(intent: Intent?) {
+        val uri = incomingUri(intent) ?: return
+        val meta = describeIncoming(uri)
+        results.onIncomingFile(meta) {}
+    }
+
+    /// Extracts the shared file URI from a VIEW/SEND intent, if any.
+    private fun incomingUri(intent: Intent?): Uri? {
+        if (intent == null) return null
+        return when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                ?: intent.data
+            // Multi-share: route the first item; the rest stay with the
+            // sender rather than being silently dropped into a queue.
+            Intent.ACTION_SEND_MULTIPLE -> intent.clipData?.getItemAt(0)?.uri
+            else -> null
+        }
+    }
+
+    /// Persists any granted permission and resolves metadata for [uri].
+    private fun describeIncoming(uri: Uri): FileMeta? {
+        // The launching intent carries the read grant flag; make it
+        // durable so the file survives an app restart.
+        try {
+            activity.grantUriPermission(
+                activity.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            Log.d(TAG, "No incoming URI grant to persist for $uri")
+        }
+        persistPermissions(uri)
+        return metaFor(uri)
     }
 
     /** Forwards onActivityResult from [com.siliph.siliph.MainActivity]. */
@@ -308,6 +358,7 @@ class FileAccessBridge(
     }
 
     private var pendingCaptureFile: File? = null
+    private var launchPayload: Uri? = null
 
     /// Resolves the parent document URI of [docUri] via findDocumentPath.
     /// Returns null when the provider cannot describe the path.

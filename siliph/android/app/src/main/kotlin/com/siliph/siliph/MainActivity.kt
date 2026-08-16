@@ -50,6 +50,17 @@ class MainActivity : FlutterActivity() {
         val ocr = OcrBridge(applicationContext, taskEvents)
         ocrBridge = ocr
         OcrApi.setUp(messenger, ocr)
+
+        // Files shared into Siliph (WhatsApp, Gmail, ...) are stashed here
+        // and consumed by Dart via FileAccessApi.getLaunchFile (section 45).
+        fileAccess.setLaunchIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        // singleTop relaunch while the app is already running.
+        super.onNewIntent(intent)
+        setIntent(intent)
+        fileAccessBridge?.handleIncomingIntent(intent)
     }
 
     @Deprecated("Deprecated in Java")

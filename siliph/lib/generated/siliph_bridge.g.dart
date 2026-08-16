@@ -605,6 +605,179 @@ class OcrBlock {
   }
 }
 
+/// One AcroForm field discovered in a PDF (section 217 forms gate).
+///
+/// [type] is 'text', 'checkbox', 'radio', 'choice', 'button',
+/// 'signature' or 'other'. [options] lists the export values for
+/// choice/radio fields; [value] is the current value ('' when empty).
+class FormField {
+  FormField({
+    required this.name,
+    required this.type,
+    required this.value,
+    required this.options,
+    required this.readOnly,
+  });
+
+  String name;
+
+  String type;
+
+  String value;
+
+  List<String> options;
+
+  bool readOnly;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      name,
+      type,
+      value,
+      options,
+      readOnly,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static FormField decode(Object result) {
+    result as List<Object?>;
+    return FormField(
+      name: result[0]! as String,
+      type: result[1]! as String,
+      value: result[2]! as String,
+      options: (result[3]! as List<Object?>).cast<String>(),
+      readOnly: result[4]! as bool,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! FormField || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(name, other.name) && _deepEquals(type, other.type) && _deepEquals(value, other.value) && _deepEquals(options, other.options) && _deepEquals(readOnly, other.readOnly);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'FormField(name: $name, type: $type, value: $value, options: $options, readOnly: $readOnly)';
+  }
+}
+
+/// A new value for one AcroForm field. Text fields take [value] as-is;
+/// checkboxes/radios take the option's export value ('' unchecks).
+class FormFieldValue {
+  FormFieldValue({
+    required this.name,
+    required this.value,
+  });
+
+  String name;
+
+  String value;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      name,
+      value,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static FormFieldValue decode(Object result) {
+    result as List<Object?>;
+    return FormFieldValue(
+      name: result[0]! as String,
+      value: result[1]! as String,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! FormFieldValue || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(name, other.name) && _deepEquals(value, other.value);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'FormFieldValue(name: $name, value: $value)';
+  }
+}
+
+/// Extracted text of one PDF page, for in-reader search.
+class PageText {
+  PageText({
+    required this.pageIndex,
+    required this.text,
+  });
+
+  int pageIndex;
+
+  String text;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      pageIndex,
+      text,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static PageText decode(Object result) {
+    result as List<Object?>;
+    return PageText(
+      pageIndex: result[0]! as int,
+      text: result[1]! as String,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PageText || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(pageIndex, other.pageIndex) && _deepEquals(text, other.text);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PageText(pageIndex: $pageIndex, text: $text)';
+  }
+}
+
 /// A freehand ink stroke drawn on a rendered page. [points] are flattened
 /// normalized x,y pairs; [colorRgb] is 0xRRGGBB; [width] is a fraction of
 /// the page's shortest side.
@@ -833,14 +1006,23 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is OcrBlock) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    }    else if (value is InkStroke) {
+    }    else if (value is FormField) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    }    else if (value is RectMark) {
+    }    else if (value is FormFieldValue) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    }    else if (value is RedactionMark) {
+    }    else if (value is PageText) {
       buffer.putUint8(139);
+      writeValue(buffer, value.encode());
+    }    else if (value is InkStroke) {
+      buffer.putUint8(140);
+      writeValue(buffer, value.encode());
+    }    else if (value is RectMark) {
+      buffer.putUint8(141);
+      writeValue(buffer, value.encode());
+    }    else if (value is RedactionMark) {
+      buffer.putUint8(142);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -867,10 +1049,16 @@ class _PigeonCodec extends StandardMessageCodec {
       case 136:
         return OcrBlock.decode(readValue(buffer)!);
       case 137:
-        return InkStroke.decode(readValue(buffer)!);
+        return FormField.decode(readValue(buffer)!);
       case 138:
-        return RectMark.decode(readValue(buffer)!);
+        return FormFieldValue.decode(readValue(buffer)!);
       case 139:
+        return PageText.decode(readValue(buffer)!);
+      case 140:
+        return InkStroke.decode(readValue(buffer)!);
+      case 141:
+        return RectMark.decode(readValue(buffer)!);
+      case 142:
         return RedactionMark.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1159,6 +1347,29 @@ class FileAccessApi {
     )
     ;
     return pigeonVar_replyValue! as String;
+  }
+
+  /// File Siliph was launched with via VIEW/SEND (section 45), or null.
+  /// Consumes the launch payload: subsequent calls return null. New
+  /// intents on a running instance arrive via
+  /// [FileResultsApi.onIncomingFile].
+  Future<FileMeta?> getLaunchFile() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.FileAccessApi.getLaunchFile$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+    return pigeonVar_replyValue as FileMeta?;
   }
 }
 
@@ -1466,6 +1677,149 @@ class PdfApi {
     ;
   }
 
+  /// Inserts every page of [insertUri] into [uri] after one-based
+  /// [afterPage] (0 inserts before the first page).
+  Future<void> startInsertPages(String uri, String insertUri, int afterPage, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startInsertPages$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, insertUri, afterPage, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Replaces pages of [uri] starting at one-based [startPage] with every
+  /// page of [replaceUri]. Pages before [startPage] survive; pages after
+  /// the replaced run survive too.
+  Future<void> startReplacePages(String uri, String replaceUri, int startPage, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startReplacePages$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, replaceUri, startPage, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Extracts the text of every page with PDFTextStripper; pages arrive
+  /// through [TaskEventsApi.onTextResult] before [TaskEventsApi.onComplete].
+  Future<void> startExtractText(String uri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startExtractText$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Lists the AcroForm fields of [uri]; empty list when the document has
+  /// no form. Encrypted PDFs report `invalid_pdf`.
+  Future<List<FormField>> listFormFields(String uri) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.listFormFields$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return (pigeonVar_replyValue! as List<Object?>).cast<FormField>();
+  }
+
+  /// Writes [values] into the AcroForm fields of [uri] and regenerates
+  /// appearances; unknown field names are skipped, not fatal.
+  Future<void> startFillForm(String uri, List<FormFieldValue> values, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startFillForm$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, values, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Flattens the AcroForm of [uri]: field values are baked into the
+  /// page content and the interactive form removed.
+  Future<void> startFlattenForm(String uri, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startFlattenForm$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Stamps the image at [imageUri] on every page (image watermark);
+  /// [position]: `diagonal`, `bottom`, `top`; [widthFraction] is the
+  /// stamp width relative to the page width.
+  Future<void> startWatermarkImage(String uri, String imageUri, String position, double widthFraction, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startWatermarkImage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, imageUri, position, widthFraction, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
   /// Encrypts the output with [password] (user + owner).
   Future<void> startProtect(String uri, String password, String outputUri, String taskId) async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.PdfApi.startProtect$pigeonVar_messageChannelSuffix';
@@ -1656,6 +2010,51 @@ class FileToolsApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Lists the direct children of [folderUri] (pass the tree URI itself
+  /// for the tree root) as FileMeta entries, folders first then files,
+  /// each sorted by display name. Throws `not_found` for an unreadable
+  /// tree, `not_supported` when the provider cannot list children.
+  Future<List<FileMeta>> listFolder(String treeUri, String folderUri) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.FileToolsApi.listFolder$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[treeUri, folderUri]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return (pigeonVar_replyValue! as List<Object?>).cast<FileMeta>();
+  }
+
+  /// Walks [treeUri] recursively and reports every file whose display
+  /// name contains [query] (case-insensitive) through
+  /// [TaskEventsApi.onSearchResult] before completion. Caps the result
+  /// set so hostile trees cannot flood the channel.
+  Future<void> startSearchFiles(String treeUri, String query, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.FileToolsApi.startSearchFiles$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[treeUri, query, taskId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -1864,6 +2263,109 @@ class ImageToolsApi {
     ;
   }
 
+  /// Rotates [uri] clockwise by [degrees] (90, 180 or 270) and saves JPEG.
+  Future<void> startRotateImage(String uri, int degrees, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.ImageToolsApi.startRotateImage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, degrees, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Flips [uri] horizontally (mirror) or vertically and saves JPEG.
+  Future<void> startFlipImage(String uri, bool horizontal, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.ImageToolsApi.startFlipImage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, horizontal, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Suggests the four corners of the dominant document in [uri] as
+  /// normalized TLx,TLy,TRx,TRy,BRx,BRy,BLx,BLy (0..1). Returns an empty
+  /// list when no convincing document outline is found. Synchronous
+  /// because detection runs on a small downscaled copy.
+  Future<List<double>> detectDocumentCorners(String uri) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.ImageToolsApi.detectDocumentCorners$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
+    return (pigeonVar_replyValue! as List<Object?>).cast<double>();
+  }
+
+  /// Warps the quadrilateral given by [corners] (8 normalized values:
+  /// TL, TR, BR, BL) into a rectangle and saves JPEG — perspective
+  /// correction for scanned pages.
+  Future<void> startPerspectiveCrop(String uri, List<double> corners, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.ImageToolsApi.startPerspectiveCrop$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, corners, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Scanner enhancement pass (section 20). [mode]: 'color' (contrast +
+  /// sharpen), 'grayscale', 'bw' (adaptive threshold) or 'magic'
+  /// (grayscale + contrast + sharpen). Saves JPEG.
+  Future<void> startEnhanceImage(String uri, String mode, String outputUri, String taskId) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.ImageToolsApi.startEnhanceImage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, mode, outputUri, taskId]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
   /// Writes small app-generated PNG bytes (e.g. a drawn signature) to
   /// [uri]. Not for bulk file content: callers cap the payload.
   Future<void> writeImageBytes(String uri, Uint8List png) async {
@@ -1922,14 +2424,15 @@ class OcrApi {
   final String pigeonVar_messageChannelSuffix;
 
   /// Recognizes text in the image at [uri]; blocks carry pageIndex 0.
-  Future<void> startRecognizeImage(String uri, String taskId) async {
+  /// [language]: 'latin', 'devanagari' (Hindi) or 'bengali'.
+  Future<void> startRecognizeImage(String uri, String language, String taskId) async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.startRecognizeImage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, language, taskId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -1941,15 +2444,15 @@ class OcrApi {
   }
 
   /// Renders every page of the PDF at [uri] and recognizes each one;
-  /// blocks carry their zero-based page index.
-  Future<void> startRecognizePdf(String uri, String taskId) async {
+  /// blocks carry their zero-based page index. [language] as above.
+  Future<void> startRecognizePdf(String uri, String language, String taskId) async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.startRecognizePdf$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, taskId]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, language, taskId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -1962,15 +2465,15 @@ class OcrApi {
 
   /// Builds a searchable copy of [uri] at [outputUri]: each page becomes
   /// its rendered image plus an invisible text layer from OCR. Text
-  /// selection on the output is approximate.
-  Future<void> startSearchablePdf(String uri, String outputUri, String taskId) async {
+  /// selection on the output is approximate. [language] as above.
+  Future<void> startSearchablePdf(String uri, String language, String outputUri, String taskId) async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.siliph.OcrApi.startSearchablePdf$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, outputUri, taskId]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[uri, language, outputUri, taskId]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -2015,6 +2518,10 @@ abstract class FileResultsApi {
 
   /// Result of a system-camera capture; null when cancelled.
   void onCameraResult(FileMeta? file);
+
+  /// A file another app handed to Siliph while it was already running
+  /// (VIEW/SEND intents, section 45).
+  void onIncomingFile(FileMeta? file);
 
   static void setUp(FileResultsApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
@@ -2123,6 +2630,27 @@ abstract class FileResultsApi {
         });
       }
     }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.FileResultsApi.onIncomingFile$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final FileMeta? arg_file = args[0] as FileMeta?;
+          try {
+            api.onIncomingFile(arg_file);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
   }
 }
 
@@ -2157,6 +2685,14 @@ abstract class TaskEventsApi {
 
   /// Recognized text blocks for OCR tasks. Delivered before [onComplete].
   void onOcrResult(String taskId, List<OcrBlock> blocks);
+
+  /// Extracted per-page text for extract-text tasks (reader search).
+  /// Delivered before [onComplete].
+  void onTextResult(String taskId, List<PageText> pages);
+
+  /// Matching files for folder-search tasks. Delivered before
+  /// [onComplete].
+  void onSearchResult(String taskId, List<FileMeta> files);
 
   static void setUp(TaskEventsApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
@@ -2349,6 +2885,50 @@ abstract class TaskEventsApi {
           final List<OcrBlock> arg_blocks = (args[1]! as List<Object?>).cast<OcrBlock>();
           try {
             api.onOcrResult(arg_taskId, arg_blocks);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.TaskEventsApi.onTextResult$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_taskId = args[0]! as String;
+          final List<PageText> arg_pages = (args[1]! as List<Object?>).cast<PageText>();
+          try {
+            api.onTextResult(arg_taskId, arg_pages);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.siliph.TaskEventsApi.onSearchResult$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_taskId = args[0]! as String;
+          final List<FileMeta> arg_files = (args[1]! as List<Object?>).cast<FileMeta>();
+          try {
+            api.onSearchResult(arg_taskId, arg_files);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

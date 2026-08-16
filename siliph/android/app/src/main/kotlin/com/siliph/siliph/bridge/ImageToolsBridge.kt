@@ -5,6 +5,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.net.Uri
 import android.os.Handler
@@ -14,6 +17,7 @@ import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 
@@ -288,6 +292,286 @@ class ImageToolsBridge(
         } ?: throw FlutterError("io_error", "Cannot write output", null)
     }
 
+    override fun startRotateImage(uri: String, degrees: Long, outputUri: String, taskId: String) {
+        runTask(taskId) { cancelled ->
+            val deg = degrees.toInt()
+            if (deg != 90 && deg != 180 && deg != 270) {
+                throw FlutterError("invalid_input", "Rotation must be 90, 180 or 270 degrees", null)
+            }
+            MemoryGuard.checkMemory("image-rotate")
+            val bitmap = decodeBitmap(uri)
+            try {
+                checkCancellation(cancelled)
+                postProgress(taskId, 0.4)
+                val matrix = Matrix().apply { postRotate(deg.toFloat()) }
+                val rotated = Bitmap.createBitmap(
+                    bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true,
+                )
+                try {
+                    encodeTo(rotated, Bitmap.CompressFormat.JPEG, 92, outputUri)
+                } finally {
+                    if (rotated !== bitmap) rotated.recycle()
+                }
+                postProgress(taskId, 1.0)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+    }
+
+    override fun startFlipImage(
+        uri: String,
+        horizontal: Boolean,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            MemoryGuard.checkMemory("image-flip")
+            val bitmap = decodeBitmap(uri)
+            try {
+                checkCancellation(cancelled)
+                postProgress(taskId, 0.4)
+                val matrix = Matrix().apply {
+                    preScale(if (horizontal) -1f else 1f, if (horizontal) 1f else -1f)
+                }
+                val flipped = Bitmap.createBitmap(
+                    bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true,
+                )
+                try {
+                    encodeTo(flipped, Bitmap.CompressFormat.JPEG, 92, outputUri)
+                } finally {
+                    if (flipped !== bitmap) flipped.recycle()
+                }
+                postProgress(taskId, 1.0)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+    }
+
+    /// Downscale + Sobel edge scan; returns the edge cluster's bounding
+    /// quad as an approximate document outline. Empty when the image has
+    /// no convincing document edges. Callers adjust the corners manually.
+    override fun detectDocumentCorners(uri: String): List<Double> {
+        val parsed = Uri.parse(uri)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(parsed)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        } ?: throw FlutterError("not_found", "Cannot open the file", null)
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > DETECT_DIMENSION) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = context.contentResolver.openInputStream(parsed)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        } ?: throw FlutterError("not_found", "Cannot open the file", null)
+        try {
+            val w = bitmap.width
+            val h = bitmap.height
+            if (w < 16 || h < 16) return emptyList()
+            val gray = IntArray(w * h)
+            bitmap.getPixels(gray, 0, w, 0, 0, w, h)
+            for (i in gray.indices) {
+                val p = gray[i]
+                gray[i] = (Color.red(p) * 299 + Color.green(p) * 587 + Color.blue(p) * 114) / 1000
+            }
+            // Sobel magnitude, thresholded at mean + deviation.
+            var sum = 0.0
+            var sumSq = 0.0
+            val mag = FloatArray(w * h)
+            for (y in 1 until h - 1) {
+                for (x in 1 until w - 1) {
+                    val gx = -gray[(y - 1) * w + x - 1] + gray[(y - 1) * w + x + 1] -
+                        2 * gray[y * w + x - 1] + 2 * gray[y * w + x + 1] -
+                        gray[(y + 1) * w + x - 1] + gray[(y + 1) * w + x + 1]
+                    val gy = -gray[(y - 1) * w + x - 1] - 2 * gray[(y - 1) * w + x] -
+                        gray[(y - 1) * w + x + 1] + gray[(y + 1) * w + x - 1] +
+                        2 * gray[(y + 1) * w + x] + gray[(y + 1) * w + x + 1]
+                    val m = sqrt((gx * gx + gy * gy).toFloat())
+                    mag[y * w + x] = m
+                    sum += m
+                    sumSq += m.toDouble() * m
+                }
+            }
+            val n = (w - 2) * (h - 2)
+            val mean = sum / n
+            val dev = sqrt(max(0.0, sumSq / n - mean * mean))
+            val threshold = (mean + dev).toFloat()
+            var minX = w; var minY = h; var maxX = -1; var maxY = -1
+            var hits = 0
+            for (y in 1 until h - 1) {
+                for (x in 1 until w - 1) {
+                    if (mag[y * w + x] > threshold) {
+                        hits++
+                        if (x < minX) minX = x
+                        if (x > maxX) maxX = x
+                        if (y < minY) minY = y
+                        if (y > maxY) maxY = y
+                    }
+                }
+            }
+            // Too sparse (blank photo) or too dense (busy background): be
+            // honest and report no detection instead of a wild guess.
+            val density = hits.toDouble() / n
+            if (hits < 200 || density < 0.01 || density > 0.45) return emptyList()
+            val boxW = maxX - minX
+            val boxH = maxY - minY
+            if (boxW < w * 0.3 || boxH < h * 0.3) return emptyList()
+            // Expand slightly so the document is not shaved, then clamp.
+            val padX = (boxW * 0.02).toInt()
+            val padY = (boxH * 0.02).toInt()
+            val tlx = ((minX - padX).coerceAtLeast(0)).toDouble() / w
+            val tly = ((minY - padY).coerceAtLeast(0)).toDouble() / h
+            val brx = ((maxX + padX).coerceAtMost(w - 1)).toDouble() / w
+            val bry = ((maxY + padY).coerceAtMost(h - 1)).toDouble() / h
+            return listOf(tlx, tly, brx, tly, brx, bry, tlx, bry)
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    override fun startPerspectiveCrop(
+        uri: String,
+        corners: List<Double>,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            if (corners.size != 8) {
+                throw FlutterError("invalid_input", "Four corners are required", null)
+            }
+            MemoryGuard.checkMemory("perspective-crop")
+            val bitmap = decodeBitmap(uri)
+            try {
+                checkCancellation(cancelled)
+                val w = bitmap.width
+                val h = bitmap.height
+                val src = FloatArray(8)
+                for (i in 0 until 8 step 2) {
+                    src[i] = (corners[i].coerceIn(0.0, 1.0) * w).toFloat()
+                    src[i + 1] = (corners[i + 1].coerceIn(0.0, 1.0) * h).toFloat()
+                }
+                val topW = dist(src[0], src[1], src[2], src[3])
+                val bottomW = dist(src[6], src[7], src[4], src[5])
+                val leftH = dist(src[0], src[1], src[6], src[7])
+                val rightH = dist(src[2], src[3], src[4], src[5])
+                val outW = max(topW, bottomW).toInt().coerceIn(1, MAX_DIMENSION)
+                val outH = max(leftH, rightH).toInt().coerceIn(1, MAX_DIMENSION)
+                val dst = floatArrayOf(0f, 0f, outW.toFloat(), 0f, outW.toFloat(), outH.toFloat(), 0f, outH.toFloat())
+                val matrix = Matrix()
+                if (!matrix.setPolyToPoly(src, 0, dst, 0, 4)) {
+                    throw FlutterError("invalid_input", "Invalid corner selection", null)
+                }
+                postProgress(taskId, 0.4)
+                val out = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(out)
+                canvas.drawColor(Color.WHITE)
+                canvas.drawBitmap(bitmap, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+                try {
+                    encodeTo(out, Bitmap.CompressFormat.JPEG, 92, outputUri)
+                } finally {
+                    out.recycle()
+                }
+                postProgress(taskId, 1.0)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+    }
+
+    override fun startEnhanceImage(uri: String, mode: String, outputUri: String, taskId: String) {
+        runTask(taskId) { cancelled ->
+            MemoryGuard.checkMemory("image-enhance")
+            val bitmap = decodeBitmap(uri)
+            try {
+                checkCancellation(cancelled)
+                postProgress(taskId, 0.3)
+                when (mode) {
+                    "bw" -> {
+                        val gray = toGrayscale(bitmap)
+                        try {
+                            // Otsu-style fixed midpoint threshold: honest
+                            // black & white for text documents.
+                            val pixels = IntArray(gray.width * gray.height)
+                            gray.getPixels(pixels, 0, gray.width, 0, 0, gray.width, gray.height)
+                            var mean = 0L
+                            for (p in pixels) mean += Color.red(p)
+                            mean /= pixels.size
+                            val threshold = mean.coerceIn(80, 180).toInt()
+                            for (i in pixels.indices) {
+                                val v = if (Color.red(pixels[i]) >= threshold) 255 else 0
+                                pixels[i] = Color.rgb(v, v, v)
+                            }
+                            val bw = Bitmap.createBitmap(gray.width, gray.height, Bitmap.Config.ARGB_8888)
+                            bw.setPixels(pixels, 0, gray.width, 0, 0, gray.width, gray.height)
+                            try {
+                                encodeTo(bw, Bitmap.CompressFormat.JPEG, 95, outputUri)
+                            } finally {
+                                bw.recycle()
+                            }
+                        } finally {
+                            if (gray !== bitmap) gray.recycle()
+                        }
+                    }
+                    "grayscale" -> {
+                        val gray = toGrayscale(bitmap)
+                        try {
+                            encodeTo(gray, Bitmap.CompressFormat.JPEG, 92, outputUri)
+                        } finally {
+                            if (gray !== bitmap) gray.recycle()
+                        }
+                    }
+                    "color", "magic" -> {
+                        val contrast = if (mode == "magic") 1.35f else 1.15f
+                        val saturation = if (mode == "magic") 0f else 1f
+                        val translate = (1 - contrast) * 128 + if (mode == "magic") 8f else 5f
+                        val matrix = ColorMatrix()
+                        matrix.setSaturation(saturation)
+                        val contrastMatrix = ColorMatrix(
+                            floatArrayOf(
+                                contrast, 0f, 0f, 0f, translate,
+                                0f, contrast, 0f, 0f, translate,
+                                0f, 0f, contrast, 0f, translate,
+                                0f, 0f, 0f, 1f, 0f,
+                            )
+                        )
+                        matrix.preConcat(contrastMatrix)
+                        val out = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+                        val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                            colorFilter = ColorMatrixColorFilter(matrix)
+                        }
+                        Canvas(out).drawBitmap(bitmap, 0f, 0f, paint)
+                        try {
+                            encodeTo(out, Bitmap.CompressFormat.JPEG, 92, outputUri)
+                        } finally {
+                            out.recycle()
+                        }
+                    }
+                    else -> throw FlutterError("invalid_input", "Unknown enhancement mode", null)
+                }
+                postProgress(taskId, 1.0)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+    }
+
+    /// Grayscale copy of [bitmap] via luminance colour matrix.
+    private fun toGrayscale(bitmap: Bitmap): Bitmap {
+        val out = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val matrix = ColorMatrix()
+        matrix.setSaturation(0f)
+        Canvas(out).drawBitmap(bitmap, 0f, 0f, Paint().apply {
+            colorFilter = ColorMatrixColorFilter(matrix)
+        })
+        return out
+    }
+
+    private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x2 - x1
+        val dy = y2 - y1
+        return sqrt(dx * dx + dy * dy)
+    }
+
     /// Centre-crop rectangle for [ratio] (width/height) inside w x h.
     private fun centreCrop(w: Int, h: Int, ratio: Double): IntArray {
         if (w / h.toDouble() > ratio) {
@@ -436,6 +720,7 @@ class ImageToolsBridge(
 
     companion object {
         private const val MAX_DIMENSION = 10_000
+        private const val DETECT_DIMENSION = 320
         private const val MIN_QUALITY = 5
         private const val MAX_QUALITY = 95
         private const val MAX_KB_ROUNDS = 4

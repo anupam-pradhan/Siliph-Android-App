@@ -24,8 +24,16 @@ import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject
 import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDChoice
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDComboBox
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDListBox
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDRadioButton
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDSignatureField
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDTextField
 import com.tom_roush.pdfbox.rendering.ImageType
 import com.tom_roush.pdfbox.rendering.PDFRenderer
+import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.tom_roush.pdfbox.util.Matrix
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -108,6 +116,117 @@ class PdfBridge(
     ) {
         runTask(taskId) { cancelled ->
             runRotate(uri, firstPage, lastPage, rotationDelta, outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startInsertPages(
+        uri: String,
+        insertUri: String,
+        afterPage: Long,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runInsertPages(uri, insertUri, afterPage.toInt(), outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startReplacePages(
+        uri: String,
+        replaceUri: String,
+        startPage: Long,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runReplacePages(uri, replaceUri, startPage.toInt(), outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startExtractText(uri: String, taskId: String) {
+        runTask(taskId) { cancelled ->
+            runExtractText(uri, taskId, cancelled)
+        }
+    }
+
+    override fun listFormFields(uri: String): List<FormField> {
+        val parsed = Uri.parse(uri)
+        try {
+            context.contentResolver.openInputStream(parsed)?.use { input ->
+                PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
+                    .use { document ->
+                        if (document.isEncrypted) {
+                            throw FlutterError(
+                                "invalid_pdf", "PDF is password protected", null
+                            )
+                        }
+                        val acroForm = document.documentCatalog.acroForm
+                            ?: return emptyList()
+                        return acroForm.fields.map { field ->
+                            val type = when (field) {
+                                is PDTextField -> "text"
+                                is PDCheckBox -> "checkbox"
+                                is PDRadioButton -> "radio"
+                                is PDComboBox -> "choice"
+                                is PDListBox -> "choice"
+                                is PDSignatureField -> "signature"
+                                else -> "other"
+                            }
+                            val options = (field as? PDChoice)?.options ?: emptyList()
+                            FormField(
+                                name = field.fullyQualifiedName ?: field.partialName ?: "",
+                                type = type,
+                                value = try {
+                                    field.value ?: ""
+                                } catch (e: Exception) {
+                                    ""
+                                },
+                                options = options,
+                                readOnly = field.isReadOnly,
+                            )
+                        }
+                    }
+            }
+            throw FlutterError("not_found", "Cannot open $uri", null)
+        } catch (e: FlutterError) {
+            throw e
+        } catch (e: IOException) {
+            throw FlutterError("invalid_pdf", "Not a readable PDF: ${e.message}", null)
+        } catch (e: Exception) {
+            throw FlutterError("io_error", e.message ?: "Form read failed", null)
+        }
+    }
+
+    override fun startFillForm(
+        uri: String,
+        values: List<FormFieldValue>,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runFillForm(uri, values, outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startFlattenForm(uri: String, outputUri: String, taskId: String) {
+        runTask(taskId) { cancelled ->
+            runFlattenForm(uri, outputUri, taskId, cancelled)
+        }
+    }
+
+    override fun startWatermarkImage(
+        uri: String,
+        imageUri: String,
+        position: String,
+        widthFraction: Double,
+        outputUri: String,
+        taskId: String,
+    ) {
+        runTask(taskId) { cancelled ->
+            runWatermarkImage(
+                uri, imageUri, position, widthFraction.toFloat(),
+                outputUri, taskId, cancelled,
+            )
         }
     }
 
@@ -397,6 +516,346 @@ class PdfBridge(
                 postProgress(taskId, 1.0)
             }
         } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    /// Rebuilds [uri] with every page of [insertUri] spliced in after
+    /// one-based [afterPage] (0 = before the first page).
+    private fun runInsertPages(
+        uri: String,
+        insertUri: String,
+        afterPage: Int,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("insert-pages")
+        val resolver = context.contentResolver
+        val source = openDocument(uri)
+        val insertDoc = try {
+            openDocument(insertUri)
+        } catch (e: Exception) {
+            try { source.close() } catch (ignored: Exception) { }
+            throw e
+        }
+        val destination = PDDocument()
+        try {
+            val pageCount = source.numberOfPages
+            if (afterPage < 0 || afterPage > pageCount) {
+                throw FlutterError("invalid_input", "Insert position out of range", null)
+            }
+            val insertCount = insertDoc.numberOfPages
+            if (insertCount == 0) {
+                throw FlutterError("invalid_input", "The insert source has no pages", null)
+            }
+            // importPage shares source resources, so both documents must
+            // stay open until the destination is saved.
+            val total = pageCount + insertCount
+            var placed = 0
+            for (index in 0 until pageCount) {
+                checkCancellation(cancelled)
+                if (index == afterPage) {
+                    for (j in 0 until insertCount) {
+                        destination.importPage(insertDoc.getPage(j))
+                        placed++
+                        postProgress(taskId, placed.toDouble() / (total + 1))
+                    }
+                }
+                destination.importPage(source.getPage(index))
+                placed++
+                postProgress(taskId, placed.toDouble() / (total + 1))
+            }
+            if (afterPage == pageCount) {
+                for (j in 0 until insertCount) {
+                    checkCancellation(cancelled)
+                    destination.importPage(insertDoc.getPage(j))
+                    placed++
+                    postProgress(taskId, placed.toDouble() / (total + 1))
+                }
+            }
+            checkCancellation(cancelled)
+            saveTo(resolver, destination, outputUri)
+            postProgress(taskId, 1.0)
+        } finally {
+            closeQuietly(destination)
+            closeQuietly(source)
+            closeQuietly(insertDoc)
+        }
+    }
+
+    /// Replaces pages of [uri] starting at one-based [startPage] with
+    /// every page of [replaceUri]; the replacement run must fit inside
+    /// the source document.
+    private fun runReplacePages(
+        uri: String,
+        replaceUri: String,
+        startPage: Int,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("replace-pages")
+        val resolver = context.contentResolver
+        val source = openDocument(uri)
+        val replaceDoc = try {
+            openDocument(replaceUri)
+        } catch (e: Exception) {
+            try { source.close() } catch (ignored: Exception) { }
+            throw e
+        }
+        val destination = PDDocument()
+        try {
+            val pageCount = source.numberOfPages
+            val replaceCount = replaceDoc.numberOfPages
+            if (startPage < 1 || startPage > pageCount) {
+                throw FlutterError("invalid_input", "Start page out of range", null)
+            }
+            if (replaceCount == 0) {
+                throw FlutterError("invalid_input", "The replacement has no pages", null)
+            }
+            if (startPage + replaceCount - 1 > pageCount) {
+                throw FlutterError(
+                    "invalid_input",
+                    "The replacement has more pages than the run it covers",
+                    null,
+                )
+            }
+            val total = pageCount
+            var placed = 0
+            for (index in 0 until pageCount) {
+                checkCancellation(cancelled)
+                when {
+                    index < startPage - 1 -> destination.importPage(source.getPage(index))
+                    index == startPage - 1 -> {
+                        for (j in 0 until replaceCount) {
+                            destination.importPage(replaceDoc.getPage(j))
+                        }
+                    }
+                    index < startPage - 1 + replaceCount -> { /* replaced away */ }
+                    else -> destination.importPage(source.getPage(index))
+                }
+                placed++
+                postProgress(taskId, placed.toDouble() / (total + 1))
+            }
+            checkCancellation(cancelled)
+            saveTo(resolver, destination, outputUri)
+            postProgress(taskId, 1.0)
+        } finally {
+            closeQuietly(destination)
+            closeQuietly(source)
+            closeQuietly(replaceDoc)
+        }
+    }
+
+    /// Extracts every page's text with PDFTextStripper and ships the list
+    /// to Flutter, where the reader runs the actual search.
+    private fun runExtractText(uri: String, taskId: String, cancelled: AtomicBoolean) {
+        MemoryGuard.checkMemory("extract-text")
+        val parsed = Uri.parse(uri)
+        context.contentResolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                if (doc.isEncrypted) {
+                    throw FlutterError("invalid_pdf", "PDF is password protected", null)
+                }
+                val stripper = PDFTextStripper()
+                val pages = mutableListOf<PageText>()
+                val pageCount = doc.numberOfPages
+                for (index in 0 until pageCount) {
+                    checkCancellation(cancelled)
+                    stripper.startPage = index + 1
+                    stripper.endPage = index + 1
+                    pages.add(PageText(pageIndex = index.toLong(), text = stripper.getText(doc)))
+                    postProgress(taskId, (index + 1).toDouble() / (pageCount + 1))
+                }
+                postEvent { events.onTextResult(taskId, pages) {} }
+            }
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    /// Writes [values] into the AcroForm of [uri]; unknown names are
+    /// skipped, and an empty intersection is reported honestly.
+    private fun runFillForm(
+        uri: String,
+        values: List<FormFieldValue>,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("fill-form")
+        if (values.isEmpty()) {
+            throw FlutterError("invalid_input", "No field values supplied", null)
+        }
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                if (doc.isEncrypted) {
+                    throw FlutterError("invalid_pdf", "PDF is password protected", null)
+                }
+                checkCancellation(cancelled)
+                val acroForm = doc.documentCatalog.acroForm
+                    ?: throw FlutterError("invalid_input", "This PDF has no form fields", null)
+                var applied = 0
+                for (entry in values) {
+                    val field = acroForm.getField(entry.name) ?: continue
+                    try {
+                        when (field) {
+                            is PDCheckBox -> {
+                                if (entry.value.isEmpty()) field.unCheck()
+                                else field.setValue(entry.value)
+                            }
+                            is PDRadioButton -> field.setValue(entry.value)
+                            is PDChoice -> field.setValue(listOf(entry.value))
+                            is PDTextField -> field.setValue(entry.value)
+                            else -> continue
+                        }
+                        applied++
+                    } catch (ignored: Exception) {
+                        // A field that refuses one value must not sink the
+                        // whole fill; the count below reports what landed.
+                    }
+                }
+                if (applied == 0) {
+                    throw FlutterError(
+                        "invalid_input", "None of the values matched a form field", null
+                    )
+                }
+                acroForm.needAppearances = true
+                resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
+                    doc.save(out)
+                } ?: throw FlutterError("io_error", "Cannot write output", null)
+                postProgress(taskId, 1.0)
+            }
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    /// Bakes the AcroForm values into the page content and removes the
+    /// interactive form (section 217 flatten gate).
+    private fun runFlattenForm(
+        uri: String,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("flatten-form")
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                if (doc.isEncrypted) {
+                    throw FlutterError("invalid_pdf", "PDF is password protected", null)
+                }
+                checkCancellation(cancelled)
+                val acroForm = doc.documentCatalog.acroForm
+                    ?: throw FlutterError("invalid_input", "This PDF has no form fields", null)
+                try {
+                    acroForm.flatten()
+                } catch (e: Exception) {
+                    throw FlutterError(
+                        "io_error", "Could not flatten this form: ${e.message}", null
+                    )
+                }
+                resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
+                    doc.save(out)
+                } ?: throw FlutterError("io_error", "Cannot write output", null)
+                postProgress(taskId, 1.0)
+            }
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    /// Image watermark: stamps one image on every page at half opacity.
+    private fun runWatermarkImage(
+        uri: String,
+        imageUri: String,
+        position: String,
+        widthFraction: Float,
+        outputUri: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("watermark-image")
+        val resolver = context.contentResolver
+        val parsed = Uri.parse(uri)
+        val source = resolver.openInputStream(parsed)?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+        val staged = stageImage(Uri.parse(imageUri), 0)
+        try {
+            val xobject = PDImageXObject.createFromFileByExtension(staged, source)
+            val pageCount = source.numberOfPages
+            val fraction = widthFraction.coerceIn(0.05f, 1f)
+            for (index in 0 until pageCount) {
+                checkCancellation(cancelled)
+                val page = source.getPage(index)
+                val rotation = ((page.rotation % 360) + 360) % 360
+                val box = page.mediaBox
+                val (renderW, renderH) = renderedSize(box, rotation)
+
+                var stampW = fraction * renderW
+                var stampH = stampW * xobject.height / xobject.width
+                if (stampH > renderH * 0.9f) {
+                    stampW = stampW * (renderH * 0.9f) / stampH
+                    stampH = renderH * 0.9f
+                }
+                val (rx0, ry0) = when (position) {
+                    "top" -> (renderW - stampW) / 2 to 12f
+                    "bottom" -> (renderW - stampW) / 2 to (renderH - stampH - 12f)
+                    else -> (renderW - stampW) / 2 to (renderH - stampH) / 2
+                }
+
+                PDPageContentStream(
+                    source, page, PDPageContentStream.AppendMode.APPEND, true, true
+                ).use { stream ->
+                    val state = PDExtendedGraphicsState()
+                    state.nonStrokingAlphaConstant = 0.5f
+                    stream.setGraphicsStateParameters(state)
+                    // Unit square -> render space (top-left origin, y down).
+                    val unitToRender = Matrix(stampW, 0f, 0f, -stampH, rx0, ry0 + stampH)
+                    var placement = unitToRender
+                    if (position == "diagonal") {
+                        // Rotate around the stamp centre in render space.
+                        val cx = rx0 + stampW / 2
+                        val cy = ry0 + stampH / 2
+                        val cos = kotlin.math.cos(Math.toRadians(45.0)).toFloat()
+                        val sin = kotlin.math.sin(Math.toRadians(45.0)).toFloat()
+                        val rotate = Matrix(cos, sin, -sin, cos, cx - cx * cos + cy * sin, cy - cx * sin - cy * cos)
+                        placement = unitToRender.multiply(rotate)
+                    }
+                    stream.transform(placement.multiply(renderToUser(rotation, box)))
+                    stream.drawImage(xobject, 0f, 0f, 1f, 1f)
+                    val solid = PDExtendedGraphicsState()
+                    solid.nonStrokingAlphaConstant = 1f
+                    stream.setGraphicsStateParameters(solid)
+                }
+                postProgress(taskId, (index + 1).toDouble() / (pageCount + 1))
+            }
+            checkCancellation(cancelled)
+            saveTo(resolver, source, outputUri)
+            postProgress(taskId, 1.0)
+        } finally {
+            staged.delete()
+            closeQuietly(source)
+        }
+    }
+
+    /// Loads a PDF from a content URI into a temp-file-backed document.
+    private fun openDocument(uri: String): PDDocument {
+        return context.contentResolver.openInputStream(Uri.parse(uri))?.use { input ->
+            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
+        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+    }
+
+    private fun saveTo(resolver: android.content.ContentResolver, doc: PDDocument, outputUri: String) {
+        resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
+            doc.save(out)
+        } ?: throw FlutterError("io_error", "Cannot write output", null)
+    }
+
+    private fun closeQuietly(doc: PDDocument?) {
+        try {
+            doc?.close()
+        } catch (ignored: Exception) {
+            // Cleanup only.
+        }
     }
 
     private fun runWriteMetadata(

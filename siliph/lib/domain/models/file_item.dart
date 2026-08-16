@@ -32,6 +32,9 @@ class FileItem {
   final int sizeBytes;
   final int lastModifiedMillis;
 
+  /// True for SAF directory entries (DocumentsContract MIME type).
+  bool get isDirectory => mimeType == 'vnd.android.document/directory';
+
   /// Lower-case extension without the dot ('pdf', 'jpg'); empty when none.
   String get extension {
     final dot = displayName.lastIndexOf('.');

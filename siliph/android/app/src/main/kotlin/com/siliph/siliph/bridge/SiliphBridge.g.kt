@@ -629,6 +629,158 @@ data class OcrBlock (
 }
 
 /**
+ * One AcroForm field discovered in a PDF (section 217 forms gate).
+ *
+ * [type] is 'text', 'checkbox', 'radio', 'choice', 'button',
+ * 'signature' or 'other'. [options] lists the export values for
+ * choice/radio fields; [value] is the current value ('' when empty).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class FormField (
+  val name: String,
+  val type: String,
+  val value: String,
+  val options: List<String>,
+  val readOnly: Boolean
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): FormField {
+      val name = pigeonVar_list[0] as String
+      val type = pigeonVar_list[1] as String
+      val value = pigeonVar_list[2] as String
+      val options = pigeonVar_list[3] as List<String>
+      val readOnly = pigeonVar_list[4] as Boolean
+      return FormField(name, type, value, options, readOnly)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      name,
+      type,
+      value,
+      options,
+      readOnly,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as FormField
+    return SiliphBridgePigeonUtils.deepEquals(this.name, other.name) && SiliphBridgePigeonUtils.deepEquals(this.type, other.type) && SiliphBridgePigeonUtils.deepEquals(this.value, other.value) && SiliphBridgePigeonUtils.deepEquals(this.options, other.options) && SiliphBridgePigeonUtils.deepEquals(this.readOnly, other.readOnly)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.name)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.type)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.value)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.options)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.readOnly)
+    return result
+  }
+  override fun toString(): String {
+    return "FormField(name=$name, type=$type, value=$value, options=$options, readOnly=$readOnly)"
+  }
+}
+
+/**
+ * A new value for one AcroForm field. Text fields take [value] as-is;
+ * checkboxes/radios take the option's export value ('' unchecks).
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class FormFieldValue (
+  val name: String,
+  val value: String
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): FormFieldValue {
+      val name = pigeonVar_list[0] as String
+      val value = pigeonVar_list[1] as String
+      return FormFieldValue(name, value)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      name,
+      value,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as FormFieldValue
+    return SiliphBridgePigeonUtils.deepEquals(this.name, other.name) && SiliphBridgePigeonUtils.deepEquals(this.value, other.value)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.name)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.value)
+    return result
+  }
+  override fun toString(): String {
+    return "FormFieldValue(name=$name, value=$value)"
+  }
+}
+
+/**
+ * Extracted text of one PDF page, for in-reader search.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PageText (
+  val pageIndex: Long,
+  val text: String
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PageText {
+      val pageIndex = pigeonVar_list[0] as Long
+      val text = pigeonVar_list[1] as String
+      return PageText(pageIndex, text)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      pageIndex,
+      text,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PageText
+    return SiliphBridgePigeonUtils.deepEquals(this.pageIndex, other.pageIndex) && SiliphBridgePigeonUtils.deepEquals(this.text, other.text)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.pageIndex)
+    result = 31 * result + SiliphBridgePigeonUtils.deepHash(this.text)
+    return result
+  }
+  override fun toString(): String {
+    return "PageText(pageIndex=$pageIndex, text=$text)"
+  }
+}
+
+/**
  * A freehand ink stroke drawn on a rendered page. [points] are flattened
  * normalized x,y pairs; [colorRgb] is 0xRRGGBB; [width] is a fraction of
  * the page's shortest side.
@@ -842,15 +994,30 @@ private open class SiliphBridgePigeonCodec : StandardMessageCodec() {
       }
       137.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          InkStroke.fromList(it)
+          FormField.fromList(it)
         }
       }
       138.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          RectMark.fromList(it)
+          FormFieldValue.fromList(it)
         }
       }
       139.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          PageText.fromList(it)
+        }
+      }
+      140.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          InkStroke.fromList(it)
+        }
+      }
+      141.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          RectMark.fromList(it)
+        }
+      }
+      142.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
           RedactionMark.fromList(it)
         }
@@ -892,16 +1059,28 @@ private open class SiliphBridgePigeonCodec : StandardMessageCodec() {
         stream.write(136)
         writeValue(stream, value.toList())
       }
-      is InkStroke -> {
+      is FormField -> {
         stream.write(137)
         writeValue(stream, value.toList())
       }
-      is RectMark -> {
+      is FormFieldValue -> {
         stream.write(138)
         writeValue(stream, value.toList())
       }
-      is RedactionMark -> {
+      is PageText -> {
         stream.write(139)
+        writeValue(stream, value.toList())
+      }
+      is InkStroke -> {
+        stream.write(140)
+        writeValue(stream, value.toList())
+      }
+      is RectMark -> {
+        stream.write(141)
+        writeValue(stream, value.toList())
+      }
+      is RedactionMark -> {
+        stream.write(142)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -970,6 +1149,13 @@ interface FileAccessApi {
   fun requestTakePhoto()
   /** App-owned cache workspace for intermediate files (section 5 boundary). */
   fun tempDirectory(): String
+  /**
+   * File Siliph was launched with via VIEW/SEND (section 45), or null.
+   * Consumes the launch payload: subsequent calls return null. New
+   * intents on a running instance arrive via
+   * [FileResultsApi.onIncomingFile].
+   */
+  fun getLaunchFile(): FileMeta?
 
   companion object {
     /** The codec used by FileAccessApi. */
@@ -1206,6 +1392,21 @@ interface FileAccessApi {
           channel.setMessageHandler(null)
         }
       }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileAccessApi.getLaunchFile$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.getLaunchFile())
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
     }
   }
 }
@@ -1289,6 +1490,43 @@ interface PdfApi {
    * `top`.
    */
   fun startWatermark(uri: String, text: String, position: String, outputUri: String, taskId: String)
+  /**
+   * Inserts every page of [insertUri] into [uri] after one-based
+   * [afterPage] (0 inserts before the first page).
+   */
+  fun startInsertPages(uri: String, insertUri: String, afterPage: Long, outputUri: String, taskId: String)
+  /**
+   * Replaces pages of [uri] starting at one-based [startPage] with every
+   * page of [replaceUri]. Pages before [startPage] survive; pages after
+   * the replaced run survive too.
+   */
+  fun startReplacePages(uri: String, replaceUri: String, startPage: Long, outputUri: String, taskId: String)
+  /**
+   * Extracts the text of every page with PDFTextStripper; pages arrive
+   * through [TaskEventsApi.onTextResult] before [TaskEventsApi.onComplete].
+   */
+  fun startExtractText(uri: String, taskId: String)
+  /**
+   * Lists the AcroForm fields of [uri]; empty list when the document has
+   * no form. Encrypted PDFs report `invalid_pdf`.
+   */
+  fun listFormFields(uri: String): List<FormField>
+  /**
+   * Writes [values] into the AcroForm fields of [uri] and regenerates
+   * appearances; unknown field names are skipped, not fatal.
+   */
+  fun startFillForm(uri: String, values: List<FormFieldValue>, outputUri: String, taskId: String)
+  /**
+   * Flattens the AcroForm of [uri]: field values are baked into the
+   * page content and the interactive form removed.
+   */
+  fun startFlattenForm(uri: String, outputUri: String, taskId: String)
+  /**
+   * Stamps the image at [imageUri] on every page (image watermark);
+   * [position]: `diagonal`, `bottom`, `top`; [widthFraction] is the
+   * stamp width relative to the page width.
+   */
+  fun startWatermarkImage(uri: String, imageUri: String, position: String, widthFraction: Double, outputUri: String, taskId: String)
   /** Encrypts the output with [password] (user + owner). */
   fun startProtect(uri: String, password: String, outputUri: String, taskId: String)
   /**
@@ -1603,6 +1841,150 @@ interface PdfApi {
         }
       }
       run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startInsertPages$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val insertUriArg = args[1] as String
+            val afterPageArg = args[2] as Long
+            val outputUriArg = args[3] as String
+            val taskIdArg = args[4] as String
+            val wrapped: List<Any?> = try {
+              api.startInsertPages(uriArg, insertUriArg, afterPageArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startReplacePages$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val replaceUriArg = args[1] as String
+            val startPageArg = args[2] as Long
+            val outputUriArg = args[3] as String
+            val taskIdArg = args[4] as String
+            val wrapped: List<Any?> = try {
+              api.startReplacePages(uriArg, replaceUriArg, startPageArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startExtractText$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val taskIdArg = args[1] as String
+            val wrapped: List<Any?> = try {
+              api.startExtractText(uriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.listFormFields$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              listOf(api.listFormFields(uriArg))
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startFillForm$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val valuesArg = args[1] as List<FormFieldValue>
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startFillForm(uriArg, valuesArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startFlattenForm$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val outputUriArg = args[1] as String
+            val taskIdArg = args[2] as String
+            val wrapped: List<Any?> = try {
+              api.startFlattenForm(uriArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startWatermarkImage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val imageUriArg = args[1] as String
+            val positionArg = args[2] as String
+            val widthFractionArg = args[3] as Double
+            val outputUriArg = args[4] as String
+            val taskIdArg = args[5] as String
+            val wrapped: List<Any?> = try {
+              api.startWatermarkImage(uriArg, imageUriArg, positionArg, widthFractionArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.PdfApi.startProtect$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
@@ -1706,6 +2088,20 @@ interface FileToolsApi {
    * [TaskEventsApi.onComplete]; when nothing decodes, rawValue is empty.
    */
   fun startScanBarcode(uri: String, taskId: String)
+  /**
+   * Lists the direct children of [folderUri] (pass the tree URI itself
+   * for the tree root) as FileMeta entries, folders first then files,
+   * each sorted by display name. Throws `not_found` for an unreadable
+   * tree, `not_supported` when the provider cannot list children.
+   */
+  fun listFolder(treeUri: String, folderUri: String): List<FileMeta>
+  /**
+   * Walks [treeUri] recursively and reports every file whose display
+   * name contains [query] (case-insensitive) through
+   * [TaskEventsApi.onSearchResult] before completion. Caps the result
+   * set so hostile trees cannot flood the channel.
+   */
+  fun startSearchFiles(treeUri: String, query: String, taskId: String)
   /** Requests cancellation of a running task. Safe when unknown. */
   fun cancel(taskId: String)
 
@@ -1836,6 +2232,44 @@ interface FileToolsApi {
         }
       }
       run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileToolsApi.listFolder$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val treeUriArg = args[0] as String
+            val folderUriArg = args[1] as String
+            val wrapped: List<Any?> = try {
+              listOf(api.listFolder(treeUriArg, folderUriArg))
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileToolsApi.startSearchFiles$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val treeUriArg = args[0] as String
+            val queryArg = args[1] as String
+            val taskIdArg = args[2] as String
+            val wrapped: List<Any?> = try {
+              api.startSearchFiles(treeUriArg, queryArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.FileToolsApi.cancel$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
@@ -1897,6 +2331,29 @@ interface ImageToolsApi {
    * (35×45 mm) and tiled [copies] times (1..6) with light cut guides.
    */
   fun startPassportSheet(uri: String, copies: Long, outputUri: String, taskId: String)
+  /** Rotates [uri] clockwise by [degrees] (90, 180 or 270) and saves JPEG. */
+  fun startRotateImage(uri: String, degrees: Long, outputUri: String, taskId: String)
+  /** Flips [uri] horizontally (mirror) or vertically and saves JPEG. */
+  fun startFlipImage(uri: String, horizontal: Boolean, outputUri: String, taskId: String)
+  /**
+   * Suggests the four corners of the dominant document in [uri] as
+   * normalized TLx,TLy,TRx,TRy,BRx,BRy,BLx,BLy (0..1). Returns an empty
+   * list when no convincing document outline is found. Synchronous
+   * because detection runs on a small downscaled copy.
+   */
+  fun detectDocumentCorners(uri: String): List<Double>
+  /**
+   * Warps the quadrilateral given by [corners] (8 normalized values:
+   * TL, TR, BR, BL) into a rectangle and saves JPEG — perspective
+   * correction for scanned pages.
+   */
+  fun startPerspectiveCrop(uri: String, corners: List<Double>, outputUri: String, taskId: String)
+  /**
+   * Scanner enhancement pass (section 20). [mode]: 'color' (contrast +
+   * sharpen), 'grayscale', 'bw' (adaptive threshold) or 'magic'
+   * (grayscale + contrast + sharpen). Saves JPEG.
+   */
+  fun startEnhanceImage(uri: String, mode: String, outputUri: String, taskId: String)
   /**
    * Writes small app-generated PNG bytes (e.g. a drawn signature) to
    * [uri]. Not for bulk file content: callers cap the payload.
@@ -2083,6 +2540,107 @@ interface ImageToolsApi {
         }
       }
       run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.ImageToolsApi.startRotateImage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val degreesArg = args[1] as Long
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startRotateImage(uriArg, degreesArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.ImageToolsApi.startFlipImage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val horizontalArg = args[1] as Boolean
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startFlipImage(uriArg, horizontalArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.ImageToolsApi.detectDocumentCorners$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              listOf(api.detectDocumentCorners(uriArg))
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.ImageToolsApi.startPerspectiveCrop$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val cornersArg = args[1] as List<Double>
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startPerspectiveCrop(uriArg, cornersArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.ImageToolsApi.startEnhanceImage$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val uriArg = args[0] as String
+            val modeArg = args[1] as String
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
+            val wrapped: List<Any?> = try {
+              api.startEnhanceImage(uriArg, modeArg, outputUriArg, taskIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              SiliphBridgePigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.siliph.ImageToolsApi.writeImageBytes$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
@@ -2131,19 +2689,22 @@ interface ImageToolsApi {
  * Generated interface from Pigeon that represents a handler of messages from Flutter.
  */
 interface OcrApi {
-  /** Recognizes text in the image at [uri]; blocks carry pageIndex 0. */
-  fun startRecognizeImage(uri: String, taskId: String)
+  /**
+   * Recognizes text in the image at [uri]; blocks carry pageIndex 0.
+   * [language]: 'latin', 'devanagari' (Hindi) or 'bengali'.
+   */
+  fun startRecognizeImage(uri: String, language: String, taskId: String)
   /**
    * Renders every page of the PDF at [uri] and recognizes each one;
-   * blocks carry their zero-based page index.
+   * blocks carry their zero-based page index. [language] as above.
    */
-  fun startRecognizePdf(uri: String, taskId: String)
+  fun startRecognizePdf(uri: String, language: String, taskId: String)
   /**
    * Builds a searchable copy of [uri] at [outputUri]: each page becomes
    * its rendered image plus an invisible text layer from OCR. Text
-   * selection on the output is approximate.
+   * selection on the output is approximate. [language] as above.
    */
-  fun startSearchablePdf(uri: String, outputUri: String, taskId: String)
+  fun startSearchablePdf(uri: String, language: String, outputUri: String, taskId: String)
   /** Requests cancellation of a running task. Safe when unknown. */
   fun cancel(taskId: String)
 
@@ -2162,9 +2723,10 @@ interface OcrApi {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
             val uriArg = args[0] as String
-            val taskIdArg = args[1] as String
+            val languageArg = args[1] as String
+            val taskIdArg = args[2] as String
             val wrapped: List<Any?> = try {
-              api.startRecognizeImage(uriArg, taskIdArg)
+              api.startRecognizeImage(uriArg, languageArg, taskIdArg)
               listOf(null)
             } catch (exception: Throwable) {
               SiliphBridgePigeonUtils.wrapError(exception)
@@ -2181,9 +2743,10 @@ interface OcrApi {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
             val uriArg = args[0] as String
-            val taskIdArg = args[1] as String
+            val languageArg = args[1] as String
+            val taskIdArg = args[2] as String
             val wrapped: List<Any?> = try {
-              api.startRecognizePdf(uriArg, taskIdArg)
+              api.startRecognizePdf(uriArg, languageArg, taskIdArg)
               listOf(null)
             } catch (exception: Throwable) {
               SiliphBridgePigeonUtils.wrapError(exception)
@@ -2200,10 +2763,11 @@ interface OcrApi {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
             val uriArg = args[0] as String
-            val outputUriArg = args[1] as String
-            val taskIdArg = args[2] as String
+            val languageArg = args[1] as String
+            val outputUriArg = args[2] as String
+            val taskIdArg = args[3] as String
             val wrapped: List<Any?> = try {
-              api.startSearchablePdf(uriArg, outputUriArg, taskIdArg)
+              api.startSearchablePdf(uriArg, languageArg, outputUriArg, taskIdArg)
               listOf(null)
             } catch (exception: Throwable) {
               SiliphBridgePigeonUtils.wrapError(exception)
@@ -2320,6 +2884,27 @@ class FileResultsApi(private val binaryMessenger: BinaryMessenger, private val m
 {
     val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
     val channelName = "dev.flutter.pigeon.siliph.FileResultsApi.onCameraResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(fileArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /**
+   * A file another app handed to Siliph while it was already running
+   * (VIEW/SEND intents, section 45).
+   */
+  fun onIncomingFile(fileArg: FileMeta?, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.FileResultsApi.onIncomingFile$separatedMessageChannelSuffix"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
     channel.send(listOf(fileArg)) {
       if (it is List<*>) {
@@ -2504,6 +3089,48 @@ class TaskEventsApi(private val binaryMessenger: BinaryMessenger, private val me
     val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onOcrResult$separatedMessageChannelSuffix"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
     channel.send(listOf(taskIdArg, blocksArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /**
+   * Extracted per-page text for extract-text tasks (reader search).
+   * Delivered before [onComplete].
+   */
+  fun onTextResult(taskIdArg: String, pagesArg: List<PageText>, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onTextResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(taskIdArg, pagesArg)) {
+      if (it is List<*>) {
+        if (it.size > 1) {
+          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
+        } else {
+          callback(Result.success(Unit))
+        }
+      } else {
+        callback(Result.failure(SiliphBridgePigeonUtils.createConnectionError(channelName)))
+      } 
+    }
+  }
+  /**
+   * Matching files for folder-search tasks. Delivered before
+   * [onComplete].
+   */
+  fun onSearchResult(taskIdArg: String, filesArg: List<FileMeta>, callback: (Result<Unit>) -> Unit)
+{
+    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+    val channelName = "dev.flutter.pigeon.siliph.TaskEventsApi.onSearchResult$separatedMessageChannelSuffix"
+    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
+    channel.send(listOf(taskIdArg, filesArg)) {
       if (it is List<*>) {
         if (it.size > 1) {
           callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))

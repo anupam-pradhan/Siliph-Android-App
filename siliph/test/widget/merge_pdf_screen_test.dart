@@ -6,7 +6,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide FormField;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:siliph/app/theme/siliph_theme.dart';
@@ -64,6 +64,9 @@ class FakeFileGateway implements FileGateway {
 
   @override
   Future<FileItem?> takePhoto() => throw UnimplementedError();
+
+  @override
+  Future<FileItem?> getLaunchFile() async => null;
 }
 
 class FakePdfGateway implements PdfGateway {
@@ -212,6 +215,57 @@ class FakePdfGateway implements PdfGateway {
   TaskHandle redact({
     required FileItem input,
     required List<RedactionMark> marks,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle insertPages({
+    required FileItem input,
+    required FileItem insert,
+    required int afterPage,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle replacePages({
+    required FileItem input,
+    required FileItem replacement,
+    required int startPage,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle extractText({required FileItem input}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<FormField>> listFormFields(FileItem file) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle fillForm({
+    required FileItem input,
+    required List<FormFieldValue> values,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle flattenForm({
+    required FileItem input,
+    required FileItem output,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  TaskHandle watermarkImage({
+    required FileItem input,
+    required FileItem image,
+    required String position,
+    required double widthFraction,
     required FileItem output,
   }) =>
       throw UnimplementedError();

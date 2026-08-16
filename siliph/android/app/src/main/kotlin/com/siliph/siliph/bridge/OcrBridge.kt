@@ -10,6 +10,8 @@ import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.bengali.BengaliTextRecognizerOptions
+import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -50,25 +52,44 @@ class OcrBridge(
     }
     private val cancellations = ConcurrentHashMap<String, AtomicBoolean>()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val recognizer: TextRecognizer by lazy {
+    // Bundled models: English/Latin, Hindi (Devanagari) and Bengali ship
+    // inside the APK, so OCR stays fully offline (section 19).
+    private val latinRecognizer: TextRecognizer by lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
+    private val devanagariRecognizer: TextRecognizer by lazy {
+        TextRecognition.getClient(DevanagariTextRecognizerOptions.DEFAULT_OPTIONS)
+    }
+    private val bengaliRecognizer: TextRecognizer by lazy {
+        TextRecognition.getClient(BengaliTextRecognizerOptions.DEFAULT_OPTIONS)
+    }
 
-    override fun startRecognizeImage(uri: String, taskId: String) {
+    private fun recognizerFor(language: String): TextRecognizer = when (language) {
+        "devanagari" -> devanagariRecognizer
+        "bengali" -> bengaliRecognizer
+        else -> latinRecognizer
+    }
+
+    override fun startRecognizeImage(uri: String, language: String, taskId: String) {
         runTask(taskId) { cancelled ->
-            runRecognizeImage(uri, taskId, cancelled)
+            runRecognizeImage(uri, language, taskId, cancelled)
         }
     }
 
-    override fun startRecognizePdf(uri: String, taskId: String) {
+    override fun startRecognizePdf(uri: String, language: String, taskId: String) {
         runTask(taskId) { cancelled ->
-            runRecognizePdf(uri, taskId, cancelled)
+            runRecognizePdf(uri, language, taskId, cancelled)
         }
     }
 
-    override fun startSearchablePdf(uri: String, outputUri: String, taskId: String) {
+    override fun startSearchablePdf(
+        uri: String,
+        language: String,
+        outputUri: String,
+        taskId: String,
+    ) {
         runTask(taskId) { cancelled ->
-            runSearchablePdf(uri, outputUri, taskId, cancelled)
+            runSearchablePdf(uri, language, outputUri, taskId, cancelled)
         }
     }
 
@@ -79,7 +100,8 @@ class OcrBridge(
     fun shutdown() {
         cancellations.values.forEach { it.set(true) }
         executor.shutdownNow()
-        recognizer.close()
+        // Only close recognizers that were actually created (lazy).
+        if (this::latinRecognizer.isInitialized) latinRecognizer.close()
     }
 
     /// Runs [action] on the worker thread with cancellation + typed events.
@@ -99,12 +121,12 @@ class OcrBridge(
         }
     }
 
-    private fun runRecognizeImage(uri: String, taskId: String, cancelled: AtomicBoolean) {
+    private fun runRecognizeImage(uri: String, language: String, taskId: String, cancelled: AtomicBoolean) {
         MemoryGuard.checkMemory("ocr-image")
         val bitmap = decodeBitmap(Uri.parse(uri), MAX_OCR_DIMENSION)
             ?: throw FlutterError("invalid_input", "Cannot decode the image", null)
         try {
-            val blocks = recognize(bitmap, 0)
+            val blocks = recognize(bitmap, 0, language)
             checkCancellation(cancelled)
             postEvent { events.onOcrResult(taskId, blocks) {} }
         } finally {
@@ -112,7 +134,7 @@ class OcrBridge(
         }
     }
 
-    private fun runRecognizePdf(uri: String, taskId: String, cancelled: AtomicBoolean) {
+    private fun runRecognizePdf(uri: String, language: String, taskId: String, cancelled: AtomicBoolean) {
         MemoryGuard.checkMemory("ocr-pdf")
         val resolver = context.contentResolver
         resolver.openInputStream(Uri.parse(uri))?.use { input ->
@@ -129,7 +151,7 @@ class OcrBridge(
                     checkCancellation(cancelled)
                     val bitmap = renderer.renderImageWithDPI(index, OCR_DPI, ImageType.RGB)
                     try {
-                        all.addAll(recognize(bitmap, index))
+                        all.addAll(recognize(bitmap, index, language))
                     } finally {
                         bitmap.recycle()
                     }
@@ -142,6 +164,7 @@ class OcrBridge(
 
     private fun runSearchablePdf(
         uri: String,
+        language: String,
         outputUri: String,
         taskId: String,
         cancelled: AtomicBoolean,
@@ -159,7 +182,7 @@ class OcrBridge(
                 try {
                     for (index in 0 until pages) {
                         checkCancellation(cancelled)
-                        buildSearchablePage(destination, renderer, source, index, taskId)
+                        buildSearchablePage(destination, renderer, source, index, language, taskId)
                         postProgress(taskId, (index + 1).toDouble() / pages)
                     }
                     resolver.openOutputStream(Uri.parse(outputUri))?.use { out ->
@@ -181,6 +204,7 @@ class OcrBridge(
         renderer: PDFRenderer,
         source: PDDocument,
         index: Int,
+        language: String,
         taskId: String,
     ) {
         val box = source.getPage(index).mediaBox
@@ -190,7 +214,7 @@ class OcrBridge(
 
         // One render serves both the recognizer and the page image below.
         val bitmap = renderer.renderImageWithDPI(index, OCR_DPI, ImageType.RGB)
-        val blocks = recognize(bitmap, index)
+        val blocks = recognize(bitmap, index, language)
 
         // Stage the rendered page as JPEG, then rebuild it as an image page.
         val staged = File(context.cacheDir, "siliph-ocr-$taskId-$index.jpg")
@@ -232,9 +256,9 @@ class OcrBridge(
 
     /// Runs the recognizer over [bitmap] and maps each text block to
     /// normalized bounds plus its [pageIndex].
-    private fun recognize(bitmap: Bitmap, pageIndex: Int): List<OcrBlock> {
+    private fun recognize(bitmap: Bitmap, pageIndex: Int, language: String): List<OcrBlock> {
         val vision = try {
-            Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)))
+            Tasks.await(recognizerFor(language).process(InputImage.fromBitmap(bitmap, 0)))
         } catch (e: Exception) {
             throw FlutterError("io_error", "Text recognition failed: ${e.message}", null)
         }

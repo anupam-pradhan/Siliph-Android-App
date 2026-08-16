@@ -148,6 +148,44 @@ class OcrBlock {
   double bottom;
 }
 
+/// One AcroForm field discovered in a PDF (section 217 forms gate).
+///
+/// [type] is 'text', 'checkbox', 'radio', 'choice', 'button',
+/// 'signature' or 'other'. [options] lists the export values for
+/// choice/radio fields; [value] is the current value ('' when empty).
+class FormField {
+  FormField({
+    required this.name,
+    required this.type,
+    required this.value,
+    required this.options,
+    required this.readOnly,
+  });
+
+  String name;
+  String type;
+  String value;
+  List<String> options;
+  bool readOnly;
+}
+
+/// A new value for one AcroForm field. Text fields take [value] as-is;
+/// checkboxes/radios take the option's export value ('' unchecks).
+class FormFieldValue {
+  FormFieldValue({required this.name, required this.value});
+
+  String name;
+  String value;
+}
+
+/// Extracted text of one PDF page, for in-reader search.
+class PageText {
+  PageText({required this.pageIndex, required this.text});
+
+  int pageIndex;
+  String text;
+}
+
 /// A freehand ink stroke drawn on a rendered page. [points] are flattened
 /// normalized x,y pairs; [colorRgb] is 0xRRGGBB; [width] is a fraction of
 /// the page's shortest side.
@@ -256,6 +294,12 @@ abstract class FileAccessApi {
 
   /// App-owned cache workspace for intermediate files (section 5 boundary).
   String tempDirectory();
+
+  /// File Siliph was launched with via VIEW/SEND (section 45), or null.
+  /// Consumes the launch payload: subsequent calls return null. New
+  /// intents on a running instance arrive via
+  /// [FileResultsApi.onIncomingFile].
+  FileMeta? getLaunchFile();
 }
 
 /// PDF operations backed by the native engine (sections 5, 192).
@@ -375,6 +419,60 @@ abstract class PdfApi {
     String taskId,
   );
 
+  /// Inserts every page of [insertUri] into [uri] after one-based
+  /// [afterPage] (0 inserts before the first page).
+  void startInsertPages(
+    String uri,
+    String insertUri,
+    int afterPage,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Replaces pages of [uri] starting at one-based [startPage] with every
+  /// page of [replaceUri]. Pages before [startPage] survive; pages after
+  /// the replaced run survive too.
+  void startReplacePages(
+    String uri,
+    String replaceUri,
+    int startPage,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Extracts the text of every page with PDFTextStripper; pages arrive
+  /// through [TaskEventsApi.onTextResult] before [TaskEventsApi.onComplete].
+  void startExtractText(String uri, String taskId);
+
+  /// Lists the AcroForm fields of [uri]; empty list when the document has
+  /// no form. Encrypted PDFs report `invalid_pdf`.
+  List<FormField> listFormFields(String uri);
+
+  /// Writes [values] into the AcroForm fields of [uri] and regenerates
+  /// appearances; unknown field names are skipped, not fatal.
+  void startFillForm(
+    String uri,
+    List<FormFieldValue> values,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Flattens the AcroForm of [uri]: field values are baked into the
+  /// page content and the interactive form removed.
+  void startFlattenForm(String uri, String outputUri, String taskId);
+
+  /// Stamps the image at [imageUri] on every page (image watermark);
+  /// [position]: `diagonal`, `bottom`, `top`; [widthFraction] is the
+  /// stamp width relative to the page width.
+  void startWatermarkImage(
+    String uri,
+    String imageUri,
+    String position,
+    double widthFraction,
+    String outputUri,
+    String taskId,
+  );
+
   /// Encrypts the output with [password] (user + owner).
   void startProtect(String uri, String password, String outputUri, String taskId);
 
@@ -419,6 +517,18 @@ abstract class FileToolsApi {
   /// The result arrives through [TaskEventsApi.onBarcodeResult] before
   /// [TaskEventsApi.onComplete]; when nothing decodes, rawValue is empty.
   void startScanBarcode(String uri, String taskId);
+
+  /// Lists the direct children of [folderUri] (pass the tree URI itself
+  /// for the tree root) as FileMeta entries, folders first then files,
+  /// each sorted by display name. Throws `not_found` for an unreadable
+  /// tree, `not_supported` when the provider cannot list children.
+  List<FileMeta> listFolder(String treeUri, String folderUri);
+
+  /// Walks [treeUri] recursively and reports every file whose display
+  /// name contains [query] (case-insensitive) through
+  /// [TaskEventsApi.onSearchResult] before completion. Caps the result
+  /// set so hostile trees cannot flood the channel.
+  void startSearchFiles(String treeUri, String query, String taskId);
 
   /// Requests cancellation of a running task. Safe when unknown.
   void cancel(String taskId);
@@ -482,6 +592,38 @@ abstract class ImageToolsApi {
   /// (35×45 mm) and tiled [copies] times (1..6) with light cut guides.
   void startPassportSheet(String uri, int copies, String outputUri, String taskId);
 
+  /// Rotates [uri] clockwise by [degrees] (90, 180 or 270) and saves JPEG.
+  void startRotateImage(String uri, int degrees, String outputUri, String taskId);
+
+  /// Flips [uri] horizontally (mirror) or vertically and saves JPEG.
+  void startFlipImage(
+    String uri,
+    bool horizontal,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Suggests the four corners of the dominant document in [uri] as
+  /// normalized TLx,TLy,TRx,TRy,BRx,BRy,BLx,BLy (0..1). Returns an empty
+  /// list when no convincing document outline is found. Synchronous
+  /// because detection runs on a small downscaled copy.
+  List<double> detectDocumentCorners(String uri);
+
+  /// Warps the quadrilateral given by [corners] (8 normalized values:
+  /// TL, TR, BR, BL) into a rectangle and saves JPEG — perspective
+  /// correction for scanned pages.
+  void startPerspectiveCrop(
+    String uri,
+    List<double> corners,
+    String outputUri,
+    String taskId,
+  );
+
+  /// Scanner enhancement pass (section 20). [mode]: 'color' (contrast +
+  /// sharpen), 'grayscale', 'bw' (adaptive threshold) or 'magic'
+  /// (grayscale + contrast + sharpen). Saves JPEG.
+  void startEnhanceImage(String uri, String mode, String outputUri, String taskId);
+
   /// Writes small app-generated PNG bytes (e.g. a drawn signature) to
   /// [uri]. Not for bulk file content: callers cap the payload.
   void writeImageBytes(String uri, Uint8List png);
@@ -497,16 +639,17 @@ abstract class ImageToolsApi {
 @HostApi()
 abstract class OcrApi {
   /// Recognizes text in the image at [uri]; blocks carry pageIndex 0.
-  void startRecognizeImage(String uri, String taskId);
+  /// [language]: 'latin', 'devanagari' (Hindi) or 'bengali'.
+  void startRecognizeImage(String uri, String language, String taskId);
 
   /// Renders every page of the PDF at [uri] and recognizes each one;
-  /// blocks carry their zero-based page index.
-  void startRecognizePdf(String uri, String taskId);
+  /// blocks carry their zero-based page index. [language] as above.
+  void startRecognizePdf(String uri, String language, String taskId);
 
   /// Builds a searchable copy of [uri] at [outputUri]: each page becomes
   /// its rendered image plus an invisible text layer from OCR. Text
-  /// selection on the output is approximate.
-  void startSearchablePdf(String uri, String outputUri, String taskId);
+  /// selection on the output is approximate. [language] as above.
+  void startSearchablePdf(String uri, String language, String outputUri, String taskId);
 
   /// Requests cancellation of a running task. Safe when unknown.
   void cancel(String taskId);
@@ -522,6 +665,10 @@ abstract class FileResultsApi {
 
   /// Result of a system-camera capture; null when cancelled.
   void onCameraResult(FileMeta? file);
+
+  /// A file another app handed to Siliph while it was already running
+  /// (VIEW/SEND intents, section 45).
+  void onIncomingFile(FileMeta? file);
 }
 
 /// Native -> Flutter events for long-running tasks keyed by taskId.
@@ -552,4 +699,12 @@ abstract class TaskEventsApi {
 
   /// Recognized text blocks for OCR tasks. Delivered before [onComplete].
   void onOcrResult(String taskId, List<OcrBlock> blocks);
+
+  /// Extracted per-page text for extract-text tasks (reader search).
+  /// Delivered before [onComplete].
+  void onTextResult(String taskId, List<PageText> pages);
+
+  /// Matching files for folder-search tasks. Delivered before
+  /// [onComplete].
+  void onSearchResult(String taskId, List<FileMeta> files);
 }

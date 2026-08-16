@@ -59,6 +59,10 @@ class FakeFileGateway implements FileGateway {
   BridgeException? photoError;
   int takePhotoCalls = 0;
 
+  /// Incoming-launch-file knobs (section 45).
+  FileItem? nextLaunchFile;
+  int getLaunchFileCalls = 0;
+
   @override
   Future<List<FileItem>> openDocuments(List<String> mimeTypes) async {
     openRequests.add(mimeTypes);
@@ -132,6 +136,14 @@ class FakeFileGateway implements FileGateway {
     if (photoError != null) throw photoError!;
     return nextPhoto;
   }
+
+  @override
+  Future<FileItem?> getLaunchFile() async {
+    getLaunchFileCalls++;
+    final file = nextLaunchFile;
+    nextLaunchFile = null;
+    return file;
+  }
 }
 
 class FakePdfGateway implements PdfGateway {
@@ -187,6 +199,20 @@ class FakePdfGateway implements PdfGateway {
   List<RectMark>? lastRects;
   int redactCalls = 0;
   List<RedactionMark>? lastRedactionMarks;
+
+  /// Batch-H knobs (insert/replace/extract/forms/image watermark).
+  int insertPagesCalls = 0;
+  int? lastInsertAfterPage;
+  int replacePagesCalls = 0;
+  int? lastReplaceStartPage;
+  int extractTextCalls = 0;
+  List<FormField> nextFormFields = const [];
+  BridgeException? formFieldsError;
+  int fillFormCalls = 0;
+  List<FormFieldValue>? lastFormValues;
+  int flattenFormCalls = 0;
+  int watermarkImageCalls = 0;
+  (String, double)? lastImageWatermark;
 
   @override
   Future<PdfInfo> inspect(FileItem file) async {
@@ -359,6 +385,75 @@ class FakePdfGateway implements PdfGateway {
     return _startOp();
   }
 
+  @override
+  TaskHandle insertPages({
+    required FileItem input,
+    required FileItem insert,
+    required int afterPage,
+    required FileItem output,
+  }) {
+    insertPagesCalls++;
+    lastInsertAfterPage = afterPage;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle replacePages({
+    required FileItem input,
+    required FileItem replacement,
+    required int startPage,
+    required FileItem output,
+  }) {
+    replacePagesCalls++;
+    lastReplaceStartPage = startPage;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle extractText({required FileItem input}) {
+    extractTextCalls++;
+    return _startOp();
+  }
+
+  @override
+  Future<List<FormField>> listFormFields(FileItem file) async {
+    if (formFieldsError != null) throw formFieldsError!;
+    return nextFormFields;
+  }
+
+  @override
+  TaskHandle fillForm({
+    required FileItem input,
+    required List<FormFieldValue> values,
+    required FileItem output,
+  }) {
+    fillFormCalls++;
+    lastFormValues = values;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle flattenForm({
+    required FileItem input,
+    required FileItem output,
+  }) {
+    flattenFormCalls++;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle watermarkImage({
+    required FileItem input,
+    required FileItem image,
+    required String position,
+    required double widthFraction,
+    required FileItem output,
+  }) {
+    watermarkImageCalls++;
+    lastImageWatermark = (position, widthFraction);
+    return _startOp();
+  }
+
   TaskHandle _newHandle() {
     lastProgress = StreamController<double>.broadcast();
     lastCompleter = Completer<void>();
@@ -441,6 +536,14 @@ class FakeFileToolsGateway implements FileToolsGateway {
   /// Barcode scan knobs.
   BarcodeResult nextBarcode = BarcodeResult(rawValue: '', format: 'none');
   int scanBarcodeCalls = 0;
+
+  /// Folder browser + search knobs.
+  List<FileItem> nextFolderEntries = const [];
+  BridgeException? listFolderError;
+  int listFolderCalls = 0;
+  List<FileItem> nextSearchMatches = const [];
+  int searchFilesCalls = 0;
+  String? lastSearchQuery;
 
   TaskHandle _startOp({
     bool withFiles = false,
@@ -538,6 +641,45 @@ class FakeFileToolsGateway implements FileToolsGateway {
     scanBarcodeCalls++;
     return _startOp(withBarcode: true);
   }
+
+  @override
+  Future<List<FileItem>> listFolder({
+    required String treeUri,
+    required String folderUri,
+  }) async {
+    listFolderCalls++;
+    if (listFolderError != null) throw listFolderError!;
+    return nextFolderEntries;
+  }
+
+  @override
+  TaskHandle searchFiles({
+    required String treeUri,
+    required String query,
+  }) {
+    searchFilesCalls++;
+    lastSearchQuery = query;
+    lastProgress = StreamController<double>.broadcast();
+    lastCompleter = Completer<void>();
+    final searchCompleter = Completer<List<FileItem>>()
+      ..complete(nextSearchMatches);
+    if (nextTaskError != null) {
+      lastCompleter!.completeError(nextTaskError!);
+      nextTaskError = null;
+    }
+    return TaskHandle(
+      taskId: 'fake-search',
+      progress: lastProgress!.stream,
+      done: lastCompleter!.future,
+      searchFiles: searchCompleter.future,
+      onCancelTask: () async {
+        if (!lastCompleter!.isCompleted) {
+          lastCompleter!
+              .completeError(const BridgeException('cancelled', 'x'));
+        }
+      },
+    );
+  }
 }
 
 class FakeImageToolsGateway implements ImageToolsGateway {
@@ -569,6 +711,19 @@ class FakeImageToolsGateway implements ImageToolsGateway {
   int? lastPassportCopies;
   int writeImageBytesCalls = 0;
   Uint8List? lastWrittenBytes;
+
+  /// Rotate/flip/scan-pipeline knobs.
+  int rotateCalls = 0;
+  int? lastRotateDegrees;
+  int flipCalls = 0;
+  bool? lastFlipHorizontal;
+  List<double> nextCorners = const [];
+  BridgeException? cornersError;
+  int detectCornersCalls = 0;
+  int perspectiveCropCalls = 0;
+  List<double>? lastPerspectiveCorners;
+  int enhanceCalls = 0;
+  String? lastEnhanceMode;
 
   /// Fails the next [writeImageBytes] call with this error.
   BridgeException? writeBytesError;
@@ -697,6 +852,57 @@ class FakeImageToolsGateway implements ImageToolsGateway {
       throw error;
     }
   }
+
+  @override
+  TaskHandle rotate({
+    required FileItem input,
+    required int degrees,
+    required FileItem output,
+  }) {
+    rotateCalls++;
+    lastRotateDegrees = degrees;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle flip({
+    required FileItem input,
+    required bool horizontal,
+    required FileItem output,
+  }) {
+    flipCalls++;
+    lastFlipHorizontal = horizontal;
+    return _startOp();
+  }
+
+  @override
+  Future<List<double>> detectCorners(FileItem image) async {
+    detectCornersCalls++;
+    if (cornersError != null) throw cornersError!;
+    return nextCorners;
+  }
+
+  @override
+  TaskHandle perspectiveCrop({
+    required FileItem input,
+    required List<double> corners,
+    required FileItem output,
+  }) {
+    perspectiveCropCalls++;
+    lastPerspectiveCorners = corners;
+    return _startOp();
+  }
+
+  @override
+  TaskHandle enhance({
+    required FileItem input,
+    required String mode,
+    required FileItem output,
+  }) {
+    enhanceCalls++;
+    lastEnhanceMode = mode;
+    return _startOp();
+  }
 }
 
 class FakeOcrGateway implements OcrGateway {
@@ -712,6 +918,7 @@ class FakeOcrGateway implements OcrGateway {
   int recognizeImageCalls = 0;
   int recognizePdfCalls = 0;
   int searchablePdfCalls = 0;
+  String? lastLanguage;
 
   TaskHandle _startOp({bool withOcr = false}) {
     lastProgress = StreamController<double>.broadcast();
@@ -741,14 +948,22 @@ class FakeOcrGateway implements OcrGateway {
   }
 
   @override
-  TaskHandle recognizeImage({required FileItem image}) {
+  TaskHandle recognizeImage({
+    required FileItem image,
+    String language = 'latin',
+  }) {
     recognizeImageCalls++;
+    lastLanguage = language;
     return _startOp(withOcr: true);
   }
 
   @override
-  TaskHandle recognizePdf({required FileItem input}) {
+  TaskHandle recognizePdf({
+    required FileItem input,
+    String language = 'latin',
+  }) {
     recognizePdfCalls++;
+    lastLanguage = language;
     return _startOp(withOcr: true);
   }
 
@@ -756,8 +971,10 @@ class FakeOcrGateway implements OcrGateway {
   TaskHandle searchablePdf({
     required FileItem input,
     required FileItem output,
+    String language = 'latin',
   }) {
     searchablePdfCalls++;
+    lastLanguage = language;
     return _startOp();
   }
 }

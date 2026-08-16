@@ -75,6 +75,40 @@ class FileToolsBridge(
         }
     }
 
+    override fun listFolder(treeUri: String, folderUri: String): List<FileMeta> {
+        val tree = Uri.parse(treeUri)
+        val folder = Uri.parse(folderUri)
+        val docId = try {
+            DocumentsContract.getDocumentId(folder)
+        } catch (e: Exception) {
+            throw FlutterError("invalid_input", "Not a readable folder", null)
+        }
+        val children = queryChildren(tree, docId)
+        val resolver = context.contentResolver
+        val ordered = children.filter { it.isDir }
+            .sortedBy { it.name.lowercase() } +
+            children.filter { !it.isDir }.sortedBy { it.name.lowercase() }
+        return ordered.map { entry ->
+            FileMeta(
+                uri = entry.uri.toString(),
+                displayName = entry.name,
+                mimeType = if (entry.isDir) {
+                    DocumentsContract.Document.MIME_TYPE_DIR
+                } else {
+                    resolver.getType(entry.uri)
+                },
+                sizeBytes = if (entry.isDir) -1L else entry.size,
+                lastModifiedMillis = 0L,
+            )
+        }
+    }
+
+    override fun startSearchFiles(treeUri: String, query: String, taskId: String) {
+        runTask(taskId) { cancelled ->
+            runSearchFiles(treeUri, query, taskId, cancelled)
+        }
+    }
+
     override fun generateQr(content: String, ecLevel: Long, outputUri: String) {
         val text = content.trim()
         if (text.isEmpty()) {
@@ -336,6 +370,61 @@ class FileToolsBridge(
         postEvent { events.onStorageResult(taskId, top) {} }
     }
 
+    /// Recursive display-name search under a SAF tree (section 217 FILES
+    /// gate). Results are capped so hostile trees cannot flood the channel.
+    private fun runSearchFiles(
+        folderTreeUri: String,
+        rawQuery: String,
+        taskId: String,
+        cancelled: AtomicBoolean,
+    ) {
+        MemoryGuard.checkMemory("file-search")
+        val query = rawQuery.trim()
+        if (query.isEmpty()) {
+            throw FlutterError("invalid_input", "Search text is empty", null)
+        }
+        val needle = query.lowercase()
+        val treeUri = Uri.parse(folderTreeUri)
+        val resolver = context.contentResolver
+        val matches = mutableListOf<FileMeta>()
+        val pending = ArrayDeque<String>()
+        pending.addLast(DocumentsContract.getTreeDocumentId(treeUri))
+        var visited = 0
+        while (pending.isNotEmpty()) {
+            checkCancellation(cancelled)
+            for (child in queryChildren(treeUri, pending.removeLast())) {
+                visited++
+                if (visited > MAX_SCAN_FILES) {
+                    throw FlutterError(
+                        "invalid_input",
+                        "This folder is too large to search; try a smaller folder.",
+                        null,
+                    )
+                }
+                if (child.isDir) {
+                    pending.addLast(DocumentsContract.getDocumentId(child.uri))
+                } else if (child.name.lowercase().contains(needle)) {
+                    matches.add(
+                        FileMeta(
+                            uri = child.uri.toString(),
+                            displayName = child.name,
+                            mimeType = resolver.getType(child.uri),
+                            sizeBytes = child.size,
+                            lastModifiedMillis = 0L,
+                        )
+                    )
+                    if (matches.size >= MAX_SEARCH_RESULTS) {
+                        postEvent { events.onSearchResult(taskId, matches) {} }
+                        postProgress(taskId, 1.0)
+                        return
+                    }
+                }
+            }
+        }
+        postEvent { events.onSearchResult(taskId, matches) {} }
+        postProgress(taskId, 1.0)
+    }
+
     private fun runScanBarcode(uri: String, taskId: String, cancelled: AtomicBoolean) {
         MemoryGuard.checkMemory("qr-scan")
         val parsed = Uri.parse(uri)
@@ -563,5 +652,6 @@ class FileToolsBridge(
         private const val MAX_SCAN_FILES = 30_000
         private const val MAX_ANALYZED_ENTRIES = 50
         private const val MAX_SCAN_DIMENSION = 1600
+        private const val MAX_SEARCH_RESULTS = 500
     }
 }
