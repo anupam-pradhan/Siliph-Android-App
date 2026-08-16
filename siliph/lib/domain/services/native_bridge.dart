@@ -1,0 +1,915 @@
+/// Dart boundary for the typed native bridge (sections 5, 180).
+///
+/// Pigeon-generated host handlers reply synchronously, so anything async
+/// (pickers, long processing) is request + event based: Dart fires a
+/// `requestX`/`startX`, and this layer routes the matching
+/// [FileResultsApi]/[TaskEventsApi] events back to waiting consumers.
+///
+/// Gateways are abstract ([FileGateway], [PdfGateway]) so widget tests can
+/// substitute fakes without platform channels.
+library;
+
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+
+import '../../generated/siliph_bridge.g.dart';
+import '../models/file_item.dart';
+
+/// Typed bridge failure. [code] matches the Kotlin error contract:
+/// `cancelled`, `invalid_pdf`, `invalid_input`, `io_error`, `not_found`.
+class BridgeException implements Exception {
+  const BridgeException(this.code, this.message);
+
+  final String code;
+  final String message;
+
+  bool get isCancelled => code == 'cancelled';
+
+  /// User-facing copy; never exposes raw stack details.
+  String get userMessage => switch (code) {
+        'cancelled' => 'Cancelled.',
+        'invalid_pdf' => 'That file is not a readable PDF.',
+        'invalid_input' => message,
+        'not_found' => 'The file can no longer be opened.',
+        'not_supported' => message,
+        'io_error' => 'Something went wrong while reading or writing files.',
+        _ => 'Something went wrong. Please try again.',
+      };
+
+  @override
+  String toString() => 'BridgeException($code): $message';
+}
+
+/// A running long-running task with progress and completion signals.
+class TaskHandle {
+  TaskHandle({
+    required this.taskId,
+    required this.progress,
+    required this.done,
+    required this.onCancelTask,
+    Future<List<String>>? files,
+    this.duplicates,
+    this.storageEntries,
+  }) : files = files ?? Future<List<String>>.value(const []);
+
+  final String taskId;
+
+  /// Progress fractions 0..1. Broadcast; safe to listen more than once.
+  final Stream<double> progress;
+
+  /// Completes when the task finishes; fails with [BridgeException].
+  final Future<void> done;
+
+  /// URIs of extra files the task created (e.g. rendered page images).
+  /// Empty for tasks that only write the negotiated output.
+  final Future<List<String>> files;
+
+  /// Duplicate groups for find-duplicates tasks; null otherwise.
+  final Future<List<DuplicateGroup>>? duplicates;
+
+  /// Storage breakdown for analyzer tasks; null otherwise.
+  final Future<List<StorageEntry>>? storageEntries;
+
+  /// Issues a cancellation request to the native engine.
+  final Future<void> Function() onCancelTask;
+
+  Future<void> cancel() => onCancelTask();
+}
+
+/// Routes native -> Flutter events to waiting consumers.
+///
+/// Register once at startup with [attach].
+class BridgeEventRouter implements FileResultsApi, TaskEventsApi {
+  BridgeEventRouter();
+
+  Completer<List<FileMeta>>? _pendingOpen;
+  Completer<List<FileMeta>>? _pendingPick;
+  Completer<FileMeta?>? _pendingCreate;
+  Completer<String?>? _pendingFolder;
+
+  final Map<String, TaskState> _tasks = {};
+
+  /// Wires this router into the generated Flutter APIs.
+  void attach() {
+    FileResultsApi.setUp(this);
+    TaskEventsApi.setUp(this);
+  }
+
+  Completer<List<FileMeta>> expectOpenResult() =>
+      _pendingOpen = Completer<List<FileMeta>>();
+
+  Completer<List<FileMeta>> expectPickImagesResult() =>
+      _pendingPick = Completer<List<FileMeta>>();
+
+  Completer<FileMeta?> expectCreateDocumentResult() =>
+      _pendingCreate = Completer<FileMeta?>();
+
+  Completer<String?> expectPickFolderResult() =>
+      _pendingFolder = Completer<String?>();
+
+  TaskState registerTask(String taskId) {
+    final state = TaskState();
+    _tasks[taskId] = state;
+    return state;
+  }
+
+  // -- FileResultsApi ------------------------------------------------------
+
+  @override
+  void onOpenResult(List<FileMeta> files) {
+    final completer = _pendingOpen;
+    _pendingOpen = null;
+    if (completer != null && !completer.isCompleted) completer.complete(files);
+  }
+
+  @override
+  void onPickImagesResult(List<FileMeta> files) {
+    final completer = _pendingPick;
+    _pendingPick = null;
+    if (completer != null && !completer.isCompleted) completer.complete(files);
+  }
+
+  @override
+  void onCreateDocumentResult(FileMeta? file) {
+    final completer = _pendingCreate;
+    _pendingCreate = null;
+    if (completer != null && !completer.isCompleted) completer.complete(file);
+  }
+
+  @override
+  void onPickFolderResult(String? treeUri) {
+    final completer = _pendingFolder;
+    _pendingFolder = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(treeUri);
+    }
+  }
+
+  // -- TaskEventsApi -------------------------------------------------------
+
+  @override
+  void onProgress(String taskId, double fraction) {
+    _tasks[taskId]?.progress.add(fraction);
+  }
+
+  @override
+  void onComplete(String taskId) {
+    final state = _tasks.remove(taskId);
+    if (state == null) return;
+    state.progress.add(1.0);
+    if (!state.done.isCompleted) state.done.complete();
+    unawaited(state.progress.close());
+  }
+
+  @override
+  void onError(String taskId, String code, String message) {
+    final state = _tasks.remove(taskId);
+    if (state == null) return;
+    if (!state.done.isCompleted) {
+      state.done.completeError(BridgeException(code, message));
+    }
+    unawaited(state.progress.close());
+  }
+
+  @override
+  void onFilesResult(String taskId, List<String> uris) {
+    final state = _tasks[taskId];
+    if (state != null && !state.files.isCompleted) {
+      state.files.complete(uris);
+    }
+  }
+
+  @override
+  void onDuplicatesResult(String taskId, List<DuplicateGroup> groups) {
+    final state = _tasks[taskId];
+    if (state != null && !state.duplicates.isCompleted) {
+      state.duplicates.complete(groups);
+    }
+  }
+
+  @override
+  void onStorageResult(String taskId, List<StorageEntry> entries) {
+    final state = _tasks[taskId];
+    if (state != null && !state.storage.isCompleted) {
+      state.storage.complete(entries);
+    }
+  }
+}
+
+/// Internal progress/completion state for one running task.
+class TaskState {
+  final StreamController<double> progress =
+      StreamController<double>.broadcast();
+  final Completer<void> done = Completer<void>();
+  final Completer<List<String>> files = Completer<List<String>>();
+  final Completer<List<DuplicateGroup>> duplicates =
+      Completer<List<DuplicateGroup>>();
+  final Completer<List<StorageEntry>> storage = Completer<List<StorageEntry>>();
+}
+
+/// File intake/export surface. Fakeable in tests.
+abstract interface class FileGateway {
+  /// SAF multi-select. Empty list when the user cancels.
+  Future<List<FileItem>> openDocuments(List<String> mimeTypes);
+
+  /// Android Photo Picker. Empty list when the user cancels.
+  Future<List<FileItem>> pickImages({int maxItems = 10});
+
+  /// Save-as dialog; null when the user cancels.
+  Future<FileItem?> createDocument({
+    required String mimeType,
+    required String displayName,
+  });
+
+  /// Renames a SAF document (section 34) and returns the updated item.
+  /// Throws [BridgeException] `not_supported` when the provider refuses.
+  Future<FileItem> rename(FileItem file, String newDisplayName);
+
+  /// Deletes a SAF document (section 34). Irreversible; callers must
+  /// confirm with the user first. True when the provider confirms it.
+  Future<bool> delete(FileItem file);
+
+  /// Folder (tree) picker for copy/move destinations; null on cancel.
+  Future<String?> pickFolder();
+
+  /// Copies [file] into [targetTreeUri]; returns the new document.
+  Future<FileItem> copy(FileItem file, String targetTreeUri);
+
+  /// Moves [file] into [targetTreeUri]; returns the new document. May
+  /// throw `not_supported` when the provider cannot resolve the parent.
+  Future<FileItem> move(FileItem file, String targetTreeUri);
+
+  /// Opens the system share sheet for [file].
+  Future<void> share(FileItem file);
+}
+
+/// PDF engine surface. Fakeable in tests.
+abstract interface class PdfGateway {
+  Future<PdfInfo> inspect(FileItem file);
+
+  /// Starts a merge; events arrive on the returned handle.
+  TaskHandle merge({
+    required List<FileItem> inputs,
+    required FileItem output,
+  });
+
+  /// Rebuilds [input] keeping only the zero-based [pageOrder] pages, in
+  /// that order. Covers extract, delete, reorder, reverse and duplicate.
+  TaskHandle rearrangePages({
+    required FileItem input,
+    required List<int> pageOrder,
+    required FileItem output,
+  });
+
+  /// Rotates one-based pages [firstPage]..[lastPage] of [input] by
+  /// [rotationDelta] degrees (90/180/270).
+  TaskHandle rotatePages({
+    required FileItem input,
+    required int firstPage,
+    required int lastPage,
+    required int rotationDelta,
+    required FileItem output,
+  });
+
+  /// Reads the document-information dictionary (section 15).
+  Future<PdfMetadata> readMetadata(FileItem file);
+
+  /// Writes [metadata] over the info dictionary, or strips all fields when
+  /// [removeAll] is true.
+  TaskHandle writeMetadata({
+    required FileItem input,
+    required PdfMetadata metadata,
+    required bool removeAll,
+    required FileItem output,
+  });
+
+  /// Rasterized recompression; [level] 0 low, 1 medium, 2 high.
+  TaskHandle compress({
+    required FileItem input,
+    required int level,
+    required FileItem output,
+  });
+
+  /// One image per page, in order.
+  TaskHandle imagesToPdf({
+    required List<FileItem> images,
+    required FileItem output,
+  });
+
+  /// Renders every page at [dpi] into [folderTreeUri]; created image URIs
+  /// arrive on [TaskHandle.files].
+  TaskHandle pdfToImages({
+    required FileItem input,
+    required int dpi,
+    required String folderTreeUri,
+  });
+
+  /// Overlays [text] on every page; [position] diagonal|top|bottom.
+  TaskHandle watermark({
+    required FileItem input,
+    required String text,
+    required String position,
+    required FileItem output,
+  });
+
+  /// Encrypts the output with [password].
+  TaskHandle protect({
+    required FileItem input,
+    required String password,
+    required FileItem output,
+  });
+
+  /// Decrypts with [password]; `invalid_input` when wrong (section 14).
+  TaskHandle unlock({
+    required FileItem input,
+    required String password,
+    required FileItem output,
+  });
+}
+
+/// Live [FileGateway] over the generated [FileAccessApi].
+class NativeFileGateway implements FileGateway {
+  NativeFileGateway(this._api, this._router);
+
+  final FileAccessApi _api;
+  final BridgeEventRouter _router;
+
+  @override
+  Future<List<FileItem>> openDocuments(List<String> mimeTypes) async {
+    final completer = _router.expectOpenResult();
+    await _api.requestOpenDocuments(mimeTypes);
+    final metas = await completer.future;
+    return metas.map(FileItem.fromMeta).toList();
+  }
+
+  @override
+  Future<List<FileItem>> pickImages({int maxItems = 10}) async {
+    final completer = _router.expectPickImagesResult();
+    await _api.requestPickImages(maxItems);
+    final metas = await completer.future;
+    return metas.map(FileItem.fromMeta).toList();
+  }
+
+  @override
+  Future<FileItem?> createDocument({
+    required String mimeType,
+    required String displayName,
+  }) async {
+    final completer = _router.expectCreateDocumentResult();
+    await _api.requestCreateDocument(mimeType, displayName);
+    final meta = await completer.future;
+    return meta == null ? null : FileItem.fromMeta(meta);
+  }
+
+  @override
+  Future<FileItem> rename(FileItem file, String newDisplayName) async {
+    try {
+      final meta = await _api.renameDocument(file.uri, newDisplayName);
+      return FileItem.fromMeta(meta);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Rename failed');
+    }
+  }
+
+  @override
+  Future<bool> delete(FileItem file) async {
+    try {
+      return await _api.deleteDocument(file.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Delete failed');
+    }
+  }
+
+  @override
+  Future<String?> pickFolder() async {
+    final completer = _router.expectPickFolderResult();
+    await _api.requestPickFolder();
+    return completer.future;
+  }
+
+  @override
+  Future<FileItem> copy(FileItem file, String targetTreeUri) async {
+    try {
+      final meta = await _api.copyDocument(file.uri, targetTreeUri);
+      return FileItem.fromMeta(meta);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Copy failed');
+    }
+  }
+
+  @override
+  Future<FileItem> move(FileItem file, String targetTreeUri) async {
+    try {
+      final meta = await _api.moveDocument(file.uri, targetTreeUri);
+      return FileItem.fromMeta(meta);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Move failed');
+    }
+  }
+
+  @override
+  Future<void> share(FileItem file) async {
+    await _api.shareDocument(file.uri, file.mimeType ?? '');
+  }
+}
+
+/// Live [PdfGateway] over the generated [PdfApi].
+class NativePdfGateway implements PdfGateway {
+  NativePdfGateway(this._api, this._router);
+
+  final PdfApi _api;
+  final BridgeEventRouter _router;
+
+  int _sequence = 0;
+
+  /// Registers a task, fires [start], and wraps its events in a handle.
+  TaskHandle _run(
+    String prefix,
+    Future<void> Function(String taskId) start, {
+    bool withFiles = false,
+  }) {
+    final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
+    final state = _router.registerTask(taskId);
+    unawaited(start(taskId));
+    return TaskHandle(
+      taskId: taskId,
+      progress: state.progress.stream,
+      done: state.done.future,
+      files: withFiles ? state.files.future : null,
+      onCancelTask: () => _api.cancel(taskId),
+    );
+  }
+
+  @override
+  Future<PdfInfo> inspect(FileItem file) async {
+    try {
+      return await _api.inspect(file.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Inspect failed');
+    }
+  }
+
+  @override
+  TaskHandle merge({
+    required List<FileItem> inputs,
+    required FileItem output,
+  }) =>
+      _run(
+        'merge',
+        (taskId) => _api.startMerge(
+          inputs.map((f) => f.uri).toList(),
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  TaskHandle rearrangePages({
+    required FileItem input,
+    required List<int> pageOrder,
+    required FileItem output,
+  }) =>
+      _run(
+        'rearrange',
+        (taskId) =>
+            _api.startRearrangePages(input.uri, pageOrder, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle rotatePages({
+    required FileItem input,
+    required int firstPage,
+    required int lastPage,
+    required int rotationDelta,
+    required FileItem output,
+  }) =>
+      _run(
+        'rotate',
+        (taskId) => _api.startRotatePages(
+          input.uri,
+          firstPage,
+          lastPage,
+          rotationDelta,
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  Future<PdfMetadata> readMetadata(FileItem file) async {
+    try {
+      return await _api.readMetadata(file.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Metadata read failed');
+    }
+  }
+
+  @override
+  TaskHandle writeMetadata({
+    required FileItem input,
+    required PdfMetadata metadata,
+    required bool removeAll,
+    required FileItem output,
+  }) =>
+      _run(
+        'write-metadata',
+        (taskId) => _api.startWriteMetadata(
+          input.uri,
+          metadata,
+          removeAll,
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  TaskHandle compress({
+    required FileItem input,
+    required int level,
+    required FileItem output,
+  }) =>
+      _run(
+        'compress',
+        (taskId) => _api.startCompress(input.uri, level, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle imagesToPdf({
+    required List<FileItem> images,
+    required FileItem output,
+  }) =>
+      _run(
+        'images-to-pdf',
+        (taskId) => _api.startImagesToPdf(
+          images.map((f) => f.uri).toList(),
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  TaskHandle pdfToImages({
+    required FileItem input,
+    required int dpi,
+    required String folderTreeUri,
+  }) =>
+      _run(
+        'pdf-to-images',
+        (taskId) =>
+            _api.startPdfToImages(input.uri, dpi, folderTreeUri, taskId),
+        withFiles: true,
+      );
+
+  @override
+  TaskHandle watermark({
+    required FileItem input,
+    required String text,
+    required String position,
+    required FileItem output,
+  }) =>
+      _run(
+        'watermark',
+        (taskId) => _api.startWatermark(
+          input.uri,
+          text,
+          position,
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  TaskHandle protect({
+    required FileItem input,
+    required String password,
+    required FileItem output,
+  }) =>
+      _run(
+        'protect',
+        (taskId) => _api.startProtect(input.uri, password, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle unlock({
+    required FileItem input,
+    required String password,
+    required FileItem output,
+  }) =>
+      _run(
+        'unlock',
+        (taskId) => _api.startUnlock(input.uri, password, output.uri, taskId),
+      );
+}
+
+/// File utilities surface (ZIP, QR, folder analysis). Fakeable in tests.
+abstract interface class FileToolsGateway {
+  /// Streams [inputs] into a ZIP archive written to [output].
+  TaskHandle zipCreate({
+    required List<FileItem> inputs,
+    required FileItem output,
+  });
+
+  /// Extracts [archive] into [folderTreeUri]; created file URIs arrive on
+  /// [TaskHandle.files].
+  TaskHandle zipExtract({
+    required FileItem archive,
+    required String folderTreeUri,
+  });
+
+  /// Scans [folderTreeUri] for byte-identical files; groups arrive on
+  /// [TaskHandle.duplicates].
+  TaskHandle findDuplicates({required String folderTreeUri});
+
+  /// Measures [folderTreeUri]; top-level breakdown arrives on
+  /// [TaskHandle.storageEntries].
+  TaskHandle analyzeStorage({required String folderTreeUri});
+
+  /// Renders [content] as a QR code PNG into [output]. [ecLevel]:
+  /// 0 low, 1 medium, 2 quartile, 3 high.
+  Future<void> generateQr({
+    required String content,
+    required int ecLevel,
+    required FileItem output,
+  });
+}
+
+/// Live [FileToolsGateway] over the generated [FileToolsApi].
+class NativeFileToolsGateway implements FileToolsGateway {
+  NativeFileToolsGateway(this._api, this._router);
+
+  final FileToolsApi _api;
+  final BridgeEventRouter _router;
+
+  int _sequence = 0;
+
+  TaskHandle _run(
+    String prefix,
+    Future<void> Function(String taskId) start, {
+    bool withFiles = false,
+    bool withDuplicates = false,
+    bool withStorage = false,
+  }) {
+    final taskId = '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
+    final state = _router.registerTask(taskId);
+    unawaited(start(taskId));
+    return TaskHandle(
+      taskId: taskId,
+      progress: state.progress.stream,
+      done: state.done.future,
+      files: withFiles ? state.files.future : null,
+      duplicates: withDuplicates ? state.duplicates.future : null,
+      storageEntries: withStorage ? state.storage.future : null,
+      onCancelTask: () => _api.cancel(taskId),
+    );
+  }
+
+  @override
+  TaskHandle zipCreate({
+    required List<FileItem> inputs,
+    required FileItem output,
+  }) =>
+      _run(
+        'zip-create',
+        (taskId) => _api.startZipCreate(
+          inputs.map((f) => f.uri).toList(),
+          output.uri,
+          taskId,
+        ),
+      );
+
+  @override
+  TaskHandle zipExtract({
+    required FileItem archive,
+    required String folderTreeUri,
+  }) =>
+      _run(
+        'zip-extract',
+        (taskId) => _api.startZipExtract(archive.uri, folderTreeUri, taskId),
+        withFiles: true,
+      );
+
+  @override
+  TaskHandle findDuplicates({required String folderTreeUri}) => _run(
+        'find-duplicates',
+        (taskId) => _api.startFindDuplicates(folderTreeUri, taskId),
+        withDuplicates: true,
+      );
+
+  @override
+  TaskHandle analyzeStorage({required String folderTreeUri}) => _run(
+        'analyze-storage',
+        (taskId) => _api.startAnalyzeStorage(folderTreeUri, taskId),
+        withStorage: true,
+      );
+
+  @override
+  Future<void> generateQr({
+    required String content,
+    required int ecLevel,
+    required FileItem output,
+  }) async {
+    try {
+      await _api.generateQr(content, ecLevel, output.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'QR generation failed');
+    }
+  }
+}
+
+/// Image tools surface (compress, resize, crop, convert, exact-KB, EXIF).
+/// Fakeable in tests.
+abstract interface class ImageToolsGateway {
+  /// Dimensions + format of [file]; throws [BridgeException] when the
+  /// document is not a decodable image.
+  Future<ImageFacts> inspect(FileItem file);
+
+  /// Re-encodes [input] as [format] ('jpeg'/'webp') at [quality] 1..100.
+  TaskHandle compress({
+    required FileItem input,
+    required String format,
+    required int quality,
+    required FileItem output,
+  });
+
+  /// JPEG-encodes [input] at or under [targetKb] kilobytes.
+  TaskHandle compressToKb({
+    required FileItem input,
+    required int targetKb,
+    required FileItem output,
+  });
+
+  /// Scales [input] to [width]x[height] pixels.
+  TaskHandle resize({
+    required FileItem input,
+    required int width,
+    required int height,
+    required FileItem output,
+  });
+
+  /// Crops the pixel rectangle out of [input].
+  TaskHandle crop({
+    required FileItem input,
+    required int left,
+    required int top,
+    required int width,
+    required int height,
+    required FileItem output,
+  });
+
+  /// Converts [input] to [format]: 'jpeg', 'png' or 'webp'.
+  TaskHandle convert({
+    required FileItem input,
+    required String format,
+    required FileItem output,
+  });
+
+  /// Re-encodes [input] as JPEG so no EXIF/GPS metadata survives.
+  TaskHandle stripExif({required FileItem input, required FileItem output});
+
+  /// Composes a printable 4×6 passport sheet with [copies] (1..6) photos
+  /// from [input].
+  TaskHandle passportSheet({
+    required FileItem input,
+    required int copies,
+    required FileItem output,
+  });
+
+  /// Writes small app-generated PNG bytes (e.g. a drawn signature) to
+  /// [output]; throws for payloads over the native cap.
+  Future<void> writeImageBytes({required FileItem output, required Uint8List png});
+}
+
+/// Live [ImageToolsGateway] over the generated [ImageToolsApi].
+class NativeImageToolsGateway implements ImageToolsGateway {
+  NativeImageToolsGateway(this._api, this._router);
+
+  final ImageToolsApi _api;
+  final BridgeEventRouter _router;
+
+  int _sequence = 0;
+
+  TaskHandle _run(String prefix, Future<void> Function(String taskId) start) {
+    final taskId =
+        '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}';
+    final state = _router.registerTask(taskId);
+    unawaited(start(taskId));
+    return TaskHandle(
+      taskId: taskId,
+      progress: state.progress.stream,
+      done: state.done.future,
+      onCancelTask: () => _api.cancel(taskId),
+    );
+  }
+
+  @override
+  Future<ImageFacts> inspect(FileItem file) async {
+    try {
+      return await _api.inspectImage(file.uri);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Image inspection failed');
+    }
+  }
+
+  @override
+  TaskHandle compress({
+    required FileItem input,
+    required String format,
+    required int quality,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-compress',
+        (taskId) => _api.startCompressImage(
+          input.uri, format, quality, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle compressToKb({
+    required FileItem input,
+    required int targetKb,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-compress-kb',
+        (taskId) =>
+            _api.startCompressToKb(input.uri, targetKb, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle resize({
+    required FileItem input,
+    required int width,
+    required int height,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-resize',
+        (taskId) => _api.startResizeImage(
+          input.uri, width, height, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle crop({
+    required FileItem input,
+    required int left,
+    required int top,
+    required int width,
+    required int height,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-crop',
+        (taskId) => _api.startCropImage(
+          input.uri, left, top, width, height, output.uri, taskId,
+        ),
+      );
+
+  @override
+  TaskHandle convert({
+    required FileItem input,
+    required String format,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-convert',
+        (taskId) =>
+            _api.startConvertImage(input.uri, format, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle stripExif({
+    required FileItem input,
+    required FileItem output,
+  }) =>
+      _run(
+        'image-strip-exif',
+        (taskId) => _api.startStripExif(input.uri, output.uri, taskId),
+      );
+
+  @override
+  TaskHandle passportSheet({
+    required FileItem input,
+    required int copies,
+    required FileItem output,
+  }) =>
+      _run(
+        'passport-sheet',
+        (taskId) =>
+            _api.startPassportSheet(input.uri, copies, output.uri, taskId),
+      );
+
+  @override
+  Future<void> writeImageBytes({
+    required FileItem output,
+    required Uint8List png,
+  }) async {
+    try {
+      await _api.writeImageBytes(output.uri, png);
+    } on PlatformException catch (e) {
+      throw BridgeException(e.code, e.message ?? 'Saving the image failed');
+    }
+  }
+}
