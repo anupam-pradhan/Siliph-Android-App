@@ -34,7 +34,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
 
   void _openTool(ToolDefinition tool) {
     ref.read(recentToolsProvider.notifier).record(tool.id);
-    context.go(tool.route);
+    context.push(tool.route);
   }
 
   @override

@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.multipdf.PDFMergerUtility
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -60,6 +61,14 @@ class PdfBridge(
     private val events: TaskEventsApi,
 ) : PdfApi {
 
+    init {
+        try {
+            PDFBoxResourceLoader.init(context)
+        } catch (ignored: Exception) {
+            // Safe fallback if already initialized
+        }
+    }
+
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "siliph-pdf-worker")
     }
@@ -79,14 +88,31 @@ class PdfBridge(
                         )
                     }
             }
-            throw FlutterError("not_found", "Cannot open $uri", null)
-        } catch (e: FlutterError) {
-            throw e
-        } catch (e: IOException) {
-            throw FlutterError("invalid_pdf", "Not a readable PDF: ${e.message}", null)
         } catch (e: Exception) {
+            // Fallback to Android system PdfRenderer for resilient inspection
+            try {
+                context.contentResolver.openFileDescriptor(parsed, "r")?.use { pfd ->
+                    val renderer = android.graphics.pdf.PdfRenderer(pfd)
+                    val count = renderer.pageCount.toLong()
+                    renderer.close()
+                    return PdfInfo(
+                        uri = uri,
+                        pageCount = count,
+                        encrypted = false,
+                    )
+                }
+            } catch (ex: Exception) {
+                if (ex is SecurityException || ex.message?.contains("password", ignoreCase = true) == true) {
+                    return PdfInfo(uri = uri, pageCount = 0, encrypted = true)
+                }
+            }
+            if (e is FlutterError) throw e
+            if (e is IOException) {
+                throw FlutterError("invalid_pdf", "Not a readable PDF: ${e.message}", null)
+            }
             throw FlutterError("io_error", e.message ?: "Inspect failed", null)
         }
+        throw FlutterError("not_found", "Cannot open $uri", null)
     }
 
     override fun startMerge(inputUris: List<String>, outputUri: String, taskId: String) {
@@ -854,9 +880,27 @@ class PdfBridge(
 
     /// Loads a PDF from a content URI into a temp-file-backed document.
     private fun openDocument(uri: String): PDDocument {
-        return context.contentResolver.openInputStream(Uri.parse(uri))?.use { input ->
-            PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
-        } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+        val parsed = Uri.parse(uri)
+        try {
+            return context.contentResolver.openInputStream(parsed)?.use { input ->
+                PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly())
+            } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+        } catch (e: Exception) {
+            val temp = File(context.cacheDir, "siliph-stage-${System.currentTimeMillis()}-${(1000..9999).random()}.pdf")
+            try {
+                context.contentResolver.openInputStream(parsed)?.use { input ->
+                    FileOutputStream(temp).use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw FlutterError("not_found", "Cannot open file: $uri", null)
+                return PDDocument.load(temp, MemoryUsageSetting.setupTempFileOnly())
+            } catch (inner: Exception) {
+                if (e is FlutterError) throw e
+                throw FlutterError("invalid_pdf", "Not a readable PDF: ${inner.message ?: e.message}", null)
+            } finally {
+                temp.delete()
+            }
+        }
     }
 
     private fun saveTo(resolver: android.content.ContentResolver, doc: PDDocument, outputUri: String) {

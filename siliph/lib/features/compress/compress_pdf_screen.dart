@@ -130,38 +130,66 @@ class _CompressPdfScreenState extends ConsumerState<CompressPdfScreen> {
     final input = _input;
     final output = _output;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Compress PDF')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: switch (_phase) {
-                _Phase.pick => _PickView(picking: _picking, onPick: _pick),
-                _Phase.configure => _ConfigureView(
-                    file: input!,
-                    level: _level,
-                    onLevel: (value) => setState(() => _level = value),
-                    onCompress: _compress,
-                  ),
-                _Phase.compressing => _ProgressView(progress: _progress),
-                _Phase.done => _DoneView(
-                    source: input!,
-                    output: output!,
-                    onRestart: () => setState(() {
-                          _phase = _Phase.pick;
-                          _input = null;
-                          _output = null;
-                        }),
-                  ),
-              },
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(SiliphSpacing.md),
-                child: _ErrorBanner(message: _error!),
+    return PopScope(
+      canPop: _phase == _Phase.pick,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_phase == _Phase.configure || _phase == _Phase.done) {
+          setState(() {
+            _phase = _Phase.pick;
+            _input = null;
+            _output = null;
+          });
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Compress PDF'),
+          leading: BackButton(
+            onPressed: () {
+              if (_phase == _Phase.configure || _phase == _Phase.done) {
+                setState(() {
+                  _phase = _Phase.pick;
+                  _input = null;
+                  _output = null;
+                });
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: switch (_phase) {
+                  _Phase.pick => _PickView(picking: _picking, onPick: _pick),
+                  _Phase.configure => _ConfigureView(
+                      file: input!,
+                      level: _level,
+                      onLevel: (value) => setState(() => _level = value),
+                      onCompress: _compress,
+                    ),
+                  _Phase.compressing => _ProgressView(progress: _progress),
+                  _Phase.done => _DoneView(
+                      source: input!,
+                      output: output!,
+                      onRestart: () => setState(() {
+                            _phase = _Phase.pick;
+                            _input = null;
+                            _output = null;
+                          }),
+                    ),
+                },
               ),
-          ],
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.all(SiliphSpacing.md),
+                  child: _ErrorBanner(message: _error!),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -326,7 +354,7 @@ class _ProgressView extends StatelessWidget {
   }
 }
 
-class _DoneView extends StatelessWidget {
+class _DoneView extends ConsumerWidget {
   const _DoneView({
     required this.source,
     required this.output,
@@ -338,10 +366,14 @@ class _DoneView extends StatelessWidget {
   final VoidCallback onRestart;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final saved = source.sizeBytes > 0 &&
         output.sizeBytes > 0 &&
         source.sizeBytes > output.sizeBytes;
+    final percent = saved
+        ? (((source.sizeBytes - output.sizeBytes) / source.sizeBytes) * 100).round()
+        : 0;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(SiliphSpacing.lg),
@@ -353,18 +385,39 @@ class _DoneView extends StatelessWidget {
             Text('Compressed',
                 style: Theme.of(context).textTheme.headlineSmallStyle),
             const SizedBox(height: SiliphSpacing.xs),
+            if (saved)
+              Text(
+                'Reduced by $percent% (${source.formattedSize} → ${output.formattedSize})',
+                style: Theme.of(context).textTheme.titleMediumStyle.copyWith(
+                      color: SiliphColors.success,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            const SizedBox(height: SiliphSpacing.xs),
             Text(
-              saved
-                  ? '${source.formattedSize} → ${output.formattedSize}. '
-                      'Saved as "${output.displayName}". '
-                      'Check the size where you saved it: some providers '
-                      'report it after a refresh.'
-                  : 'Saved as "${output.displayName}".',
+              'Saved as "${output.displayName}"',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: SiliphSpacing.lg),
-            OutlinedButton(onPressed: onRestart, child: const Text('Done')),
+            const SizedBox(height: SiliphSpacing.xl),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(fileGatewayProvider).share(output);
+                  },
+                  icon: const Icon(Icons.share_outlined),
+                  label: const Text('Share'),
+                ),
+                const SizedBox(width: SiliphSpacing.md),
+                FilledButton.icon(
+                  onPressed: onRestart,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Compress Another'),
+                ),
+              ],
+            ),
           ],
         ),
       ),

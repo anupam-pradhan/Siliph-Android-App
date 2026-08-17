@@ -52,7 +52,7 @@ class RecentScreen extends ConsumerWidget {
                         title: Text(tool.title),
                         subtitle: Text(tool.subtitle),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.go(tool.route),
+                        onTap: () => context.push(tool.route),
                       );
                     }),
                     if (i < recentTools.length - 1)

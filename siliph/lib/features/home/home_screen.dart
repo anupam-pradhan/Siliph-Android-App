@@ -38,7 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _openTool(ToolDefinition tool) {
     ref.read(recentToolsProvider.notifier).record(tool.id);
-    context.go(tool.route);
+    context.push(tool.route);
   }
 
   @override
@@ -376,7 +376,7 @@ class _RecentEmptyState extends ConsumerWidget {
       message: 'Scan a document, choose a PDF, or select images. '
           'Your processed files will appear here.',
       actions: [
-        EmptyStateAction('Scan', () => context.go(SiliphRoutes.tool('scan-document'))),
+        EmptyStateAction('Scan', () => context.push(SiliphRoutes.tool('scan-document'))),
         EmptyStateAction('Choose PDF', () => context.go(SiliphRoutes.tools)),
         EmptyStateAction('Choose Images', () => context.go(SiliphRoutes.tools)),
       ],

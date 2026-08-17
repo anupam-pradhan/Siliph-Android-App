@@ -31,33 +31,42 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= _kRailBreakpoint;
-        return Scaffold(
-          body: Row(
-            children: [
-              if (useRail) _SiliphRail(currentIndex: navigationShell.currentIndex, onTap: _goBranch, onCenterTap: () => _showCreateSheet(context)),
-              Expanded(child: navigationShell),
-            ],
-          ),
-          floatingActionButton: useRail
-              ? FloatingActionButton(
-                  onPressed: () => _showCreateSheet(context),
-                  backgroundColor: SiliphColors.primary,
-                  foregroundColor: SiliphColors.onPrimary,
-                  child: const Icon(Icons.add),
-                )
-              : null,
-          bottomNavigationBar: useRail
-              ? null
-              : _SiliphBottomBar(
-                  currentIndex: navigationShell.currentIndex,
-                  onTap: _goBranch,
-                  onCenterTap: () => _showCreateSheet(context),
-                ),
-        );
+    return PopScope(
+      canPop: navigationShell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (navigationShell.currentIndex != 0) {
+          _goBranch(0);
+        }
       },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useRail = constraints.maxWidth >= _kRailBreakpoint;
+          return Scaffold(
+            body: Row(
+              children: [
+                if (useRail) _SiliphRail(currentIndex: navigationShell.currentIndex, onTap: _goBranch, onCenterTap: () => _showCreateSheet(context)),
+                Expanded(child: navigationShell),
+              ],
+            ),
+            floatingActionButton: useRail
+                ? FloatingActionButton(
+                    onPressed: () => _showCreateSheet(context),
+                    backgroundColor: SiliphColors.primary,
+                    foregroundColor: SiliphColors.onPrimary,
+                    child: const Icon(Icons.add),
+                  )
+                : null,
+            bottomNavigationBar: useRail
+                ? null
+                : _SiliphBottomBar(
+                    currentIndex: navigationShell.currentIndex,
+                    onTap: _goBranch,
+                    onCenterTap: () => _showCreateSheet(context),
+                  ),
+          );
+        },
+      ),
     );
   }
 
@@ -67,7 +76,7 @@ class AppShell extends ConsumerWidget {
       showDragHandle: true,
       builder: (sheetContext) => _CreateSheet(onNavigate: (route) {
         Navigator.of(sheetContext).pop();
-        context.go(route);
+        context.push(route);
       }),
     );
   }
