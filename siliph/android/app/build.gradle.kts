@@ -20,7 +20,7 @@ android {
     namespace = "com.siliph.app"
     // Siliph baseline: Android 16 / API 36 (master prompt section 4).
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
