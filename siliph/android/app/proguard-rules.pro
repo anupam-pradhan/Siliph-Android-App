@@ -11,6 +11,7 @@
 
 # Pigeon bridge contracts
 -keep class com.siliph.siliph.bridge.** { *; }
+-keep class com.siliph.siliph.** { *; }
 -keep class com.siliph.app.** { *; }
 
 # PDFBox Android
