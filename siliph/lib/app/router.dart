@@ -52,12 +52,14 @@ import '../features/recent/recent_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/signature/sign_pdf_screen.dart';
 import '../features/signature/signature_maker_screen.dart';
+import '../features/splash/splash_screen.dart';
 import '../features/split/split_pdf_screen.dart';
 import '../features/tools/tool_detail_screen.dart';
 import '../features/tools/tools_screen.dart';
 
 /// Route path constants.
 abstract final class SiliphRoutes {
+  static const String splash = '/splash';
   static const String home = '/home';
   static const String tools = '/tools';
   static const String recent = '/recent';
@@ -174,9 +176,13 @@ abstract final class SiliphRoutes {
 /// Builds the app router.
 GoRouter buildRouter() {
   return GoRouter(
-    initialLocation: SiliphRoutes.home,
+    initialLocation: SiliphRoutes.splash,
     debugLogDiagnostics: false,
     routes: [
+      GoRoute(
+        path: SiliphRoutes.splash,
+        builder: (context, state) => const SplashScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);

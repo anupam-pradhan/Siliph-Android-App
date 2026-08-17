@@ -5,8 +5,9 @@ Prepared according to Master Build Prompt Section 221.
 ---
 
 ## 1. App Details
-- **App Title**: Siliph - PDF & File Tools
-- **Package Name**: `com.siliph.siliph`
+- **App Title**: Siliph: PDF & File Tools
+- **Launcher Label**: Siliph
+- **Package Name**: `com.siliph.app`
 - **Category**: Productivity / Tools
 - **Content Rating**: Everyone
 

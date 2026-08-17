@@ -6,6 +6,9 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
+# Flutter deferred components (optional play core references)
+-dontwarn com.google.android.play.core.**
+
 # Pigeon bridge contracts
 -keep class com.siliph.siliph.bridge.** { *; }
 -keep class com.siliph.app.** { *; }

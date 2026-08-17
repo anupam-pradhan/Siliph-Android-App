@@ -6,7 +6,8 @@ This document provides a comprehensive report of all features, architecture comp
 
 ## 1. Project Overview & Guiding Principles
 
-- **Product Name**: Siliph - PDF & File Tools
+- **Product Name**: Siliph: PDF & File Tools
+- **Launcher Short Label**: Siliph
 - **Promise**: "All-in-one PDF, image and document tools. Private. Fast. On your device."
 - **Core Principles**:
   - 100% Local-first processing (zero mandatory cloud/account requirements)
@@ -22,10 +23,10 @@ This document provides a comprehensive report of all features, architecture comp
 
 | Metric | Status |
 |---|---|
-| **Automated Tests** | **150 / 150 passed** (Unit & Widget Test Suites) |
+| **Automated Tests** | **152 / 152 passed** (Unit & Widget Test Suites) |
 | **Static Analysis** | **0 issues** (`flutter analyze` clean) |
 | **Tool Catalog Status** | **49 / 49 tools marked `ToolAvailability.ready`** |
-| **Native Bridge Bindings** | 100% typed with Pigeon (Dart + Kotlin) |
+| **Release Build (AAB)** | **Verified & compiled** (`app-release.aab`) |
 | **Build Status** | Debug & Release ready |
 
 ---

@@ -53,7 +53,7 @@ class _SiliphAppState extends ConsumerState<SiliphApp> {
     final settings = ref.watch(settingsProvider);
 
     return MaterialApp.router(
-      title: 'Siliph - PDF & File Tools',
+      title: 'Siliph: PDF & File Tools',
       debugShowCheckedModeBanner: false,
       theme: SiliphTheme.build(brightness: Brightness.light),
       darkTheme: SiliphTheme.build(brightness: Brightness.dark),

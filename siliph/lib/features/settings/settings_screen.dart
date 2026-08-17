@@ -123,7 +123,7 @@ class SettingsScreen extends ConsumerWidget {
                       filterQuality: FilterQuality.high,
                     ),
                   ),
-                  title: const Text('Siliph - PDF & File Tools'),
+                  title: const Text('Siliph: PDF & File Tools'),
                   subtitle: const Text('Version 1.0.0'),
                 ),
               ],
