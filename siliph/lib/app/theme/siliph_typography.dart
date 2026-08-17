@@ -12,6 +12,7 @@ extension SiliphTextStyles on TextTheme {
   TextStyle get headlineSmallStyle => headlineSmall ?? const TextStyle();
   TextStyle get titleLargeStyle => titleLarge ?? const TextStyle();
   TextStyle get titleMediumStyle => titleMedium ?? const TextStyle();
+  TextStyle get titleSmallStyle => titleSmall ?? const TextStyle();
   TextStyle get bodyLargeStyle => bodyLarge ?? const TextStyle();
   TextStyle get bodyMediumStyle => bodyMedium ?? const TextStyle();
   TextStyle get bodySmallStyle => bodySmall ?? const TextStyle();
