@@ -5,7 +5,7 @@ Prepared according to Master Build Prompt Section 221.
 ---
 
 ## 1. App Details
-- **App Title**: Siliph: PDF, Scanner & OCR
+- **App Title**: Siliph - PDF & File Tools
 - **Package Name**: `com.siliph.siliph`
 - **Category**: Productivity / Tools
 - **Content Rating**: Everyone
