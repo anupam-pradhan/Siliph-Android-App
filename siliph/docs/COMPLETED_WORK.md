@@ -6,7 +6,7 @@ This document provides a comprehensive report of all features, architecture comp
 
 ## 1. Project Overview & Guiding Principles
 
-- **Product Name**: Siliph
+- **Product Name**: Siliph - PDF & File Tools
 - **Promise**: "All-in-one PDF, image and document tools. Private. Fast. On your device."
 - **Core Principles**:
   - 100% Local-first processing (zero mandatory cloud/account requirements)

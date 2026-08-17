@@ -105,19 +105,15 @@ class _HomeHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [SiliphColors.primary, SiliphColors.primaryDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(SiliphRadii.md),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(SiliphRadii.md),
+            child: Image.asset(
+              'assets/images/siliph_logo.png',
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
             ),
-            child: const Icon(Icons.description_outlined,
-                color: SiliphColors.onPrimary, size: 22),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           Text('Siliph', style: Theme.of(context).textTheme.titleLarge),

@@ -111,11 +111,20 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader('About'),
           Card(
             child: Column(
-              children: const [
+              children: [
                 ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Version'),
-                  subtitle: Text('1.0.0'),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(SiliphRadii.sm),
+                    child: Image.asset(
+                      'assets/images/siliph_logo.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                  title: const Text('Siliph - PDF & File Tools'),
+                  subtitle: const Text('Version 1.0.0'),
                 ),
               ],
             ),
