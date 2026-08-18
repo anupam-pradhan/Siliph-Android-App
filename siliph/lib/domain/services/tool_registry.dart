@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 
 import '../models/tool_category.dart';
 import '../models/tool_definition.dart';
+import 'pdf_editor/tool_definitions.dart';
 
 /// Immutable registry of all Siliph tools.
 class ToolRegistry {
@@ -49,7 +50,8 @@ class ToolRegistry {
       ]
           .map(byId)
           .whereType<ToolDefinition>()
-          .toList();
+          .toList() +
+          pdfEditorTools.where((t) => t.category == ToolCategory.pdf).toList();
 }
 
 ToolDefinition _tool({
@@ -265,6 +267,8 @@ final List<ToolDefinition> _catalog = [
     // Read/edit/strip the document-information dictionary on copies.
     availability: ToolAvailability.ready,
   ),
+  // PDF Editor tools
+  ...pdfEditorTools,
   _tool(
     id: 'pdf-page-numbers',
     title: 'Page Numbers',
