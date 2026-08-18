@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,7 +32,7 @@ class AddImageScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<AddImageScreen> createState() => _AddImageScreenState;
+  ConsumerState<AddImageScreen> createState() => _AddImageScreenState();
 }
 
 class _AddImageScreenState extends ConsumerState<AddImageScreen> {
@@ -229,7 +230,7 @@ class _AddImageScreenState extends ConsumerState<AddImageScreen> {
     final dx = position.dx - _dragStart!.dx;
     final dy = position.dy - _dragStart!.dy;
     setState(() {
-      _rotation = dy.atan2(dx);
+      _rotation = atan2(dy, dx);
     });
   }
 
@@ -370,8 +371,8 @@ class _AddImageScreenState extends ConsumerState<AddImageScreen> {
   }
 
   Widget _buildCanvasArea() {
-    final imgWidth = _selectedImage != null ? 300 : 100;
-    final imgHeight = _selectedImage != null ? 300 : 100;
+    final imgWidth = (_selectedImage != null ? 300 : 100).toDouble();
+    final imgHeight = (_selectedImage != null ? 300 : 100).toDouble();
 
     return GestureDetector(
       onPanStart: (details) {
@@ -415,8 +416,8 @@ class _AddImageScreenState extends ConsumerState<AddImageScreen> {
             left: (_position?.dx ?? 0.5) * 300 - imgWidth / 2,
             top: (_position?.dy ?? 0.5) * 300 - imgHeight / 2,
             child: GestureDetector(
-              onPanStart: (_) => _startMove(Offset(_position?.dx ?? 0.5, _position?.dy ?? 0.5) * 300),
-              onPanUpdate: (_) => _updateMove(Offset(_position?.dx ?? 0.5, _position?.dy ?? 0.5) * 300),
+              onPanStart: (details) => _startMove(details.localPosition),
+              onPanUpdate: (details) => _updateMove(details.localPosition),
               onPanEnd: (_) => _endMove(),
               child: Transform.rotate(
                 angle: _rotation,
@@ -537,9 +538,9 @@ class _AddImageScreenState extends ConsumerState<AddImageScreen> {
           // Replace
           Expanded(
             child: _BottomToolChip(
-              icon: Icons.replace_outlined,
+              icon: Icons.swap_horiz_outlined,
               label: 'Replace',
-              onTap: _pickImage,
+              onTap: () => _pickFromGallery(),
             ),
           ),
           const SizedBox(width: SiliphSpacing.sm),
@@ -557,7 +558,7 @@ class _AddImageScreenState extends ConsumerState<AddImageScreen> {
           // Rotate
           Expanded(
             child: _BottomToolChip(
-              icon: Icons.rotate_outlined,
+              icon: Icons.rotate_right_outlined,
               label: 'Rotate',
               onTap: () {
                 setState(() {
@@ -650,7 +651,7 @@ class _PhaseChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _phase = phase),
+      onSelected: (_) {},
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );
@@ -686,7 +687,7 @@ class _BottomToolChip extends StatelessWidget {
               ? SiliphColors.error.withValues(alpha: 0.1)
               : SiliphColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(SiliphRadii.md),
-          border: Border(
+          border: Border.all(
             color: isDestructive ? SiliphColors.error : SiliphColors.primary,
             width: 1,
           ),
@@ -722,7 +723,7 @@ class _ImageResizePainter extends CustomPainter {
   });
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     final handleSize = 12.0;
     final paint = Paint()
       ..color = color
@@ -748,7 +749,7 @@ class _ImageRotatePainter extends CustomPainter {
   _ImageRotatePainter({required this.color, required this.angle});
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     final handleSize = 16.0;
     final paint = Paint()
       ..color = color
@@ -775,7 +776,7 @@ class _CropPainter extends CustomPainter {
   _CropPainter({required this.start, required this.end, required this.color});
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;

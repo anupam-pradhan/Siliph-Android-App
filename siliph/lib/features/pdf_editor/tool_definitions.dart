@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/tool_category.dart';
 import '../../domain/models/tool_definition.dart';
+import '../../domain/services/tool_registry.dart';
 
 /// Unique IDs for each PDF Editor tool.
 enum PdfEditorToolId {
@@ -179,7 +180,7 @@ final List<ToolDefinition> pdfEditorTools = const [
     title: 'Find & Replace',
     subtitle: 'Search and replace text',
     category: ToolCategory.pdf,
-    icon: Icons.find_outlined,
+    icon: Icons.search_outlined,
     keywords: {'find', 'replace', 'search', 'text'},
     availability: ToolAvailability.ready,
     sortPriority: 35,
@@ -214,8 +215,9 @@ final List<ToolDefinition> pdfEditorTools = const [
 /// toolRegistryProvider.value = toolRegistryProvider.value..addAll(pdfEditorTools);
 /// ```
 extension PdfEditorToolRegistry on ToolRegistry {
-  ToolDefinition? getTool(String id) => _catalog.byId(id);
-  Set<ToolDefinition> get pdfEditor => _catalog.where((t) => t.category == ToolCategory.pdf && t.id.startsWith('pdf_editor')).toSet();
+  ToolDefinition? getTool(String id) => byId(id);
+  Set<ToolDefinition> get pdfEditor =>
+      inCategory(ToolCategory.pdf).where((t) => t.id.startsWith('pdf_editor')).toSet();
   List<ToolDefinition> get pdfEditorReady =>
-      _catalog.where((t) => t.category == ToolCategory.pdf && t.availability == ToolAvailability.ready).toList();
+      ready.where((t) => t.id.startsWith('pdf_editor')).toList();
 }

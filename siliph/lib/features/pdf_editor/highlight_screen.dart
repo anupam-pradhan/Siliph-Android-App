@@ -67,7 +67,7 @@ class HighlightScreen extends ConsumerStatefulWidget {
   final int pageNumber;
 
   @override
-  ConsumerState<HighlightScreen> createState() => _HighlightScreenState;
+  ConsumerState<HighlightScreen> createState() => _HighlightScreenState();
 }
 
 class _HighlightScreenState extends ConsumerState<HighlightScreen> {
@@ -173,19 +173,19 @@ class _HighlightScreenState extends ConsumerState<HighlightScreen> {
           _TypeToggleButton(
             type: _AnnotationType.highlight,
             isActive: _type == _AnnotationType.highlight,
-            onTap: () => _toggleType(_AnnotationType.highlight),
+            onTap: (_) => _toggleType(_AnnotationType.highlight),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _TypeToggleButton(
             type: _AnnotationType.underline,
             isActive: _type == _AnnotationType.underline,
-            onTap: () => _toggleType(_AnnotationType.underline),
+            onTap: (_) => _toggleType(_AnnotationType.underline),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _TypeToggleButton(
             type: _AnnotationType.strikethrough,
             isActive: _type == _AnnotationType.strikethrough,
-            onTap: () => _toggleType(_AnnotationType.strikethrough),
+            onTap: (_) => _toggleType(_AnnotationType.strikethrough),
           ),
         ],
       ),
@@ -217,24 +217,28 @@ class _HighlightScreenState extends ConsumerState<HighlightScreen> {
             phase: _AnnotationPhase.select,
             label: 'Select',
             active: _phase == _AnnotationPhase.select,
+            onSelected: (selected) => setState(() => _phase = _AnnotationPhase.select),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _AnnotationPhase.highlighting,
             label: 'Highlight',
             active: _phase == _AnnotationPhase.highlighting,
+            onSelected: (selected) => setState(() => _phase = _AnnotationPhase.highlighting),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _AnnotationPhase.underlining,
             label: 'Underline',
             active: _phase == _AnnotationPhase.underlining,
+            onSelected: (selected) => setState(() => _phase = _AnnotationPhase.underlining),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _AnnotationPhase.strikethrough,
             label: 'Strike',
             active: _phase == _AnnotationPhase.strikethrough,
+            onSelected: (selected) => setState(() => _phase = _AnnotationPhase.strikethrough),
           ),
         ],
       ),
@@ -326,7 +330,7 @@ class _HighlightScreenState extends ConsumerState<HighlightScreen> {
             child: Icon(
               Icons.picture_as_pdf_outlined,
               size: 100,
-              color: SiliffColors.outline,
+              color: SiliphColors.outline,
             ),
           ),
           // Selection rectangle
@@ -345,7 +349,7 @@ class _HighlightScreenState extends ConsumerState<HighlightScreen> {
 class _ColorChip extends StatelessWidget {
   final Color color;
   final bool isSelected;
-  final VoidCallback onSelected;
+  final ValueChanged<bool> onSelected;
 
   const _ColorChip({
     required this.color,
@@ -365,7 +369,7 @@ class _ColorChip extends StatelessWidget {
         ),
       ),
       selected: isSelected,
-      onSelected: (_) => onSelected(),
+      onSelected: (_) => onSelected(true),
       selectedColor: Colors.transparent,
       backgroundColor: Colors.transparent,
     );
@@ -377,11 +381,13 @@ class _PhaseChip extends StatelessWidget {
   final _AnnotationPhase phase;
   final String label;
   final bool active;
+  final ValueChanged<bool> onSelected;
 
   const _PhaseChip({
     required this.phase,
     required this.label,
     required this.active,
+    required this.onSelected,
   });
 
   @override
@@ -389,7 +395,7 @@ class _PhaseChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _phase = phase),
+      onSelected: (_) => onSelected(true),
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );
@@ -400,7 +406,7 @@ class _PhaseChip extends StatelessWidget {
 class _TypeToggleButton extends StatelessWidget {
   final _AnnotationType type;
   final bool isActive;
-  final VoidCallback onTap;
+  final ValueChanged<bool> onTap;
 
   const _TypeToggleButton({
     required this.type,
@@ -413,7 +419,7 @@ class _TypeToggleButton extends StatelessWidget {
     return ChoiceChip(
       label: Text(_typeLabel(type)),
       selected: isActive,
-      onSelected: (_) => onTap(),
+      onSelected: (_) => onTap(true),
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );

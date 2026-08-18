@@ -76,7 +76,7 @@ class ShapesScreen extends ConsumerStatefulWidget {
   final int pageNumber;
 
   @override
-  ConsumerState<ShapesScreen> createState() => _ShapesScreenState;
+  ConsumerState<ShapesScreen> createState() => _ShapesScreenState();
 }
 
 class _ShapesScreenState extends ConsumerState<ShapesScreen> {
@@ -126,8 +126,8 @@ class _ShapesScreenState extends ConsumerState<ShapesScreen> {
       final rect = _shape.rect;
       _shape = _shape.copyWith(
         rect: Rect.fromLTWH(
-          rect.left.min(position.dx),
-          rect.top.min(position.dy),
+          min(rect.left, position.dx),
+          min(rect.top, position.dy),
           (position.dx - rect.left).abs(),
           (position.dy - rect.top).abs(),
         ),
@@ -187,47 +187,42 @@ class _ShapesScreenState extends ConsumerState<ShapesScreen> {
       final dx = position.dx - _dragCurrent!.dx;
       final dy = position.dy - _dragCurrent!.dy;
       final rect = _shape.rect;
-      switch (_dragStart) {
-        case _topLeftHandle:
-          _shape = _shape.copyWith(
-            rect: Rect.fromLTWH(
-              rect.left + dx,
-              rect.top + dy,
-              rect.right - dx,
-              rect.bottom - dy,
-            ),
-          );
-          break;
-        case _topRightHandle:
-          _shape = _shape.copyWith(
-            rect: Rect.fromLTWH(
-              rect.left,
-              rect.top + dy,
-              rect.right + dx,
-              rect.bottom - dy,
-            ),
-          );
-          break;
-        case _bottomLeftHandle:
-          _shape = _shape.copyWith(
-            rect: Rect.fromLTWH(
-              rect.left + dx,
-              rect.top,
-              rect.right - dx,
-              rect.bottom - dy,
-            ),
-          );
-          break;
-        case _bottomRightHandle:
-          _shape = _shape.copyWith(
-            rect: Rect.fromLTWH(
-              rect.left,
-              rect.top,
-              rect.right + dx,
-              rect.bottom - dy,
-            ),
-          );
-          break;
+      if (_dragStart == _topLeftHandle) {
+        _shape = _shape.copyWith(
+          rect: Rect.fromLTWH(
+            rect.left + dx,
+            rect.top + dy,
+            rect.right - dx,
+            rect.bottom - dy,
+          ),
+        );
+      } else if (_dragStart == _topRightHandle) {
+        _shape = _shape.copyWith(
+          rect: Rect.fromLTWH(
+            rect.left,
+            rect.top + dy,
+            rect.right + dx,
+            rect.bottom - dy,
+          ),
+        );
+      } else if (_dragStart == _bottomLeftHandle) {
+        _shape = _shape.copyWith(
+          rect: Rect.fromLTWH(
+            rect.left + dx,
+            rect.top,
+            rect.right - dx,
+            rect.bottom - dy,
+          ),
+        );
+      } else if (_dragStart == _bottomRightHandle) {
+        _shape = _shape.copyWith(
+          rect: Rect.fromLTWH(
+            rect.left,
+            rect.top,
+            rect.right + dx,
+            rect.bottom - dy,
+          ),
+        );
       }
       _dragCurrent = position;
     });
@@ -256,7 +251,7 @@ class _ShapesScreenState extends ConsumerState<ShapesScreen> {
     final dy1 = _dragStart!.dy - _shape.rect.center.dy;
     final dx2 = position.dx - _shape.rect.center.dx;
     final dy2 = position.dy - _shape.rect.center.dy;
-    final angle = dy2.atan2(dx2) - dy1.atan2(dx1);
+    final angle = atan2(dy2, dx2) - atan2(dy1, dx1);
     setState(() {
       _shape = _shape.copyWith(rotation: _shape.rotation + angle);
     });
@@ -376,7 +371,7 @@ class _ShapesScreenState extends ConsumerState<ShapesScreen> {
               Expanded(
                 child: _ActionChip(
                   label: _shape.isSelected ? 'Done' : 'Select',
-                  icon: _shape.isSelected ? Icons.check_outlined : Icons.select_outlined,
+                  icon: _shape.isSelected ? Icons.check_outlined : Icons.key_outlined,
                   onTap: _toggleSelection,
                   isSelected: _shape.isSelected,
                 ),
@@ -493,42 +488,42 @@ class _ShapeTypeSelector extends StatelessWidget {
         _ShapeChip(
           shapeType: _ShapeType.rectangle,
           isSelected: type == _ShapeType.rectangle,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.rectangle),
         ),
         _ShapeChip(
           shapeType: _ShapeType.roundedRect,
           isSelected: type == _ShapeType.roundedRect,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.roundedRect),
         ),
         _ShapeChip(
           shapeType: _ShapeType.circle,
           isSelected: type == _ShapeType.circle,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.circle),
         ),
         _ShapeChip(
           shapeType: _ShapeType.ellipse,
           isSelected: type == _ShapeType.ellipse,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.ellipse),
         ),
         _ShapeChip(
           shapeType: _ShapeType.line,
           isSelected: type == _ShapeType.line,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.line),
         ),
         _ShapeChip(
           shapeType: _ShapeType.arrow,
           isSelected: type == _ShapeType.arrow,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.arrow),
         ),
         _ShapeChip(
           shapeType: _ShapeType.checkmark,
           isSelected: type == _ShapeType.checkmark,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.checkmark),
         ),
         _ShapeChip(
           shapeType: _ShapeType.cross,
           isSelected: type == _ShapeType.cross,
-          onSelected: onSelected,
+          onSelected: () => onSelected(_ShapeType.cross),
         ),
       ],
     );
@@ -550,9 +545,9 @@ class _ShapeChip extends StatelessWidget {
   String _getChipLabel(_ShapeType type) {
     switch (type) {
       case _ShapeType.rectangle:
-        return 'Rect';
+        return 'Rectangle';
       case _ShapeType.roundedRect:
-        return 'Rounded';
+        return 'Rounded rect';
       case _ShapeType.circle:
         return 'Circle';
       case _ShapeType.ellipse:
@@ -562,7 +557,7 @@ class _ShapeChip extends StatelessWidget {
       case _ShapeType.arrow:
         return 'Arrow';
       case _ShapeType.checkmark:
-        return 'Check';
+        return 'Checkmark';
       case _ShapeType.cross:
         return 'Cross';
     }
@@ -570,12 +565,28 @@ class _ShapeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(_getChipLabel(shapeType)),
-      selected: isSelected,
-      onSelected: (_) => onSelected(),
-      selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
-      backgroundColor: Colors.transparent,
+    return InkWell(
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: SiliphSpacing.sm,
+          vertical: SiliphSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? SiliphColors.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          border: Border.all(
+            color: isSelected ? SiliphColors.primary : SiliphColors.outline,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(SiliphRadii.md),
+        ),
+        child: Text(
+          _getChipLabel(shapeType),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
     );
   }
 }
@@ -694,7 +705,7 @@ class _ColorChips extends StatelessWidget {
 class _ColorChip extends StatelessWidget {
   final Color color;
   final bool isSelected;
-  final VoidCallback onSelected;
+  final ValueChanged<Color> onSelected;
 
   const _ColorChip({
     required this.color,
@@ -714,7 +725,7 @@ class _ColorChip extends StatelessWidget {
         ),
       ),
       selected: isSelected,
-      onSelected: (_) => onSelected(),
+      onSelected: (_) => onSelected(color),
       selectedColor: Colors.transparent,
       backgroundColor: Colors.transparent,
     );
@@ -728,24 +739,24 @@ class _ShapePainter extends CustomPainter {
   _ShapePainter({required this.shape});
 
   @override
-  bool get shouldRepaint => true;
+  bool shouldRepaint(_ShapePainter oldDelegate) => true;
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     // Save transformation
     final center = shape.rect.center;
     canvas.translate(center.dx, center.dy);
     canvas.rotate(shape.rotation);
-    translate(-center.dx, -center.dy);
+    canvas.translate(-center.dx, -center.dy);
 
     final fillPaint = Paint()
       ..color = shape.fillColor
       ..style = PaintingStyle.fill;
     final strokePaint = Paint()
       ..color = shape.borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth: shape.borderWidth
-      ..strokeCap = StrokeCap.round;
+      ..style = PaintingStyle.stroke;
+    strokePaint.strokeWidth = shape.borderWidth;
+    strokePaint.strokeCap = StrokeCap.round;
 
     switch (shape.type) {
       case _ShapeType.rectangle:
@@ -839,7 +850,7 @@ class _ShapePainter extends CustomPainter {
         final checkPaint = Paint()
           ..color = shape.borderColor
           ..style = PaintingStyle.stroke
-          ..strokeWidth: shape.borderWidth
+          ..strokeWidth = shape.borderWidth
           ..strokeCap = StrokeCap.round;
         final center = shape.rect.center;
         final size = min(shape.rect.width, shape.rect.height) / 3;
@@ -858,7 +869,7 @@ class _ShapePainter extends CustomPainter {
         final crossPaint = Paint()
           ..color = shape.borderColor
           ..style = PaintingStyle.stroke
-          ..strokeWidth: shape.borderWidth
+          ..strokeWidth = shape.borderWidth
           ..strokeCap = StrokeCap.round;
         final center = shape.rect.center;
         final size = min(shape.rect.width, shape.rect.height) / 3;

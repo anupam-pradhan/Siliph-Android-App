@@ -40,6 +40,7 @@ enum _PdfEditorTool {
   search,
   findReplace,
   pages,
+  more,
 }
 
 class PdfEditorScreen extends ConsumerStatefulWidget {
@@ -78,7 +79,7 @@ class _PdfEditorScreenState extends ConsumerState<PdfEditorScreen> {
   int _historyIndex = -1;
 
   // Current annotations/marks
-  final List<_Annotation> _annotations = [];
+  List<_Annotation> _annotations = [];
   Offset? _annotatedPoint;
   String? _editingText;
   TextEditingController? _textController;
@@ -164,7 +165,7 @@ class _PdfEditorScreenState extends ConsumerState<PdfEditorScreen> {
         });
       }
     } finally {
-      if (mounted && _activeRender == null) {
+      if (mounted) {
         setState(() => _rendering = false);
       }
     }
@@ -552,7 +553,7 @@ class _PdfEditorScreenState extends ConsumerState<PdfEditorScreen> {
         child: Column(
           children: [
             // Phase indicator and page
-            if (_phase == _PdfEditorPhase.error) ..._errorBanner(),
+            if (_phase == _PdfEditorPhase.error) _errorBanner(),
             if (_phase != _PdfEditorPhase.error) ...[
               _buildPageIndicator(),
               _buildZoomControls(),
@@ -615,7 +616,7 @@ class _PdfEditorScreenState extends ConsumerState<PdfEditorScreen> {
                           _SelectionOverlay(
                             start: _selectionStart!,
                             end: _selectionEnd!,
-                            size: constraints.maxSize,
+                            size: Size(constraints.maxWidth, constraints.maxHeight),
                           ),
                       ],
                     ),
@@ -695,7 +696,7 @@ class _PdfEditorScreenState extends ConsumerState<PdfEditorScreen> {
     for (final ann in _annotations) {
       if (ann is _InkAnnotation) {
         strokes.add(InkStroke(
-          points: ann.points,
+          points: ann.points.expand((offset) => [offset.dx, offset.dy]).toList(),
           colorRgb: ann.colorRgb,
           width: ann.strokeWidth,
         ));
@@ -828,14 +829,14 @@ class _SelectionOverlay extends StatelessWidget {
 }
 
 class _SelectionPainter extends CustomPainter {
-  const _SelectionPainter(this.rect, this.paint);
+  _SelectionPainter(this.rect, this._paint);
 
   final Rect rect;
-  final Paint paint;
+  final Paint _paint;
 
   @override
-  void paint(Canvas canvas) {
-    canvas.drawRect(rect, paint);
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(rect, _paint);
   }
 
   @override

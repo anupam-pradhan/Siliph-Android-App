@@ -7,6 +7,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,54 @@ import '../../domain/services/native_bridge.dart';
 import '../../generated/siliph_bridge.g.dart';
 
 enum _AddTextPhase { place, editing, resizing, rotating, selected }
+
+class _TextFormatting {
+  final String fontFamily;
+  final double fontSize;
+  final Color textColor;
+  final FontWeight fontWeight;
+  final FontStyle fontStyle;
+  final bool isBold;
+  final bool isItalic;
+  final bool isUnderline;
+  final TextAlign alignment;
+
+  _TextFormatting({
+    this.fontFamily = 'Roboto',
+    this.fontSize = 16.0,
+    this.textColor = const Color(0xFF000000),
+    this.fontWeight = FontWeight.normal,
+    this.fontStyle = FontStyle.normal,
+    this.isBold = false,
+    this.isItalic = false,
+    this.isUnderline = false,
+    this.alignment = TextAlign.left,
+  });
+
+  _TextFormatting copyWith({
+    String? fontFamily,
+    double? fontSize,
+    Color? textColor,
+    FontWeight? fontWeight,
+    FontStyle? fontStyle,
+    bool? isBold,
+    bool? isItalic,
+    bool? isUnderline,
+    TextAlign? alignment,
+  }) {
+    return _TextFormatting(
+      fontFamily: fontFamily ?? this.fontFamily,
+      fontSize: fontSize ?? this.fontSize,
+      textColor: textColor ?? this.textColor,
+      fontWeight: fontWeight ?? this.fontWeight,
+      fontStyle: fontStyle ?? this.fontStyle,
+      isBold: isBold ?? this.isBold,
+      isItalic: isItalic ?? this.isItalic,
+      isUnderline: isUnderline ?? this.isUnderline,
+      alignment: alignment ?? this.alignment,
+    );
+  }
+}
 
 /// State for add text workflow.
 class AddTextScreen extends ConsumerStatefulWidget {
@@ -259,7 +308,7 @@ class _AddTextScreenState extends ConsumerState<AddTextScreen> {
     final dx = position.dx - _dragStart!.dx;
     final dy = position.dy - _dragStart!.dy;
     setState(() {
-      _rotation = dy.atan2(dx); // Angle in radians
+      _rotation = atan2(dy, dx); // Angle in radians
     });
   }
 
@@ -435,15 +484,15 @@ class _AddTextScreenState extends ConsumerState<AddTextScreen> {
   }
 
   Widget _buildTextObject() {
-    final width = _text.isNotEmpty ? 200 : 100;
+    final width = (_text.isNotEmpty ? 200 : 100).toDouble();
     final height = 50.0;
 
     return Positioned(
       left: _position!.dx * 300 - width / 2,
       top: _position!.dy * 300 - height / 2,
       child: GestureDetector(
-        onPanStart: (_) => _startMove(_position! ?? Offset.zero),
-        onPanUpdate: (_) => _updateMove(_position! ?? Offset.zero),
+        onPanStart: (_) => _startMove(_position ?? Offset.zero),
+        onPanUpdate: (_) => _updateMove(_position ?? Offset.zero),
         onPanEnd: (_) => _endMove(),
         child: Container(
           width: width,
@@ -596,7 +645,7 @@ class _AddTextScreenState extends ConsumerState<AddTextScreen> {
           // Size
           Expanded(
             child: _BottomToolChip(
-              icon: Icons.font_size_outlined,
+              icon: Icons.format_size_outlined,
               label: 'Size',
               onTap: () {},
             ),
@@ -606,7 +655,7 @@ class _AddTextScreenState extends ConsumerState<AddTextScreen> {
           // Bold
           Expanded(
             child: _BottomToolChip(
-              icon: Icons.bold_outlined,
+              icon: Icons.format_bold,
               label: 'B',
               onTap: _toggleBold,
             ),
@@ -616,7 +665,7 @@ class _AddTextScreenState extends ConsumerState<AddTextScreen> {
           // Italic
           Expanded(
             child: _BottomToolChip(
-              icon: Icons.italic_outlined,
+              icon: Icons.format_italic,
               label: 'I',
               onTap: _toggleItalic,
             ),
@@ -655,7 +704,7 @@ class _PhaseChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _phase = phase),
+      onSelected: (_) {},
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );
@@ -691,7 +740,7 @@ class _BottomToolChip extends StatelessWidget {
               ? SiliphColors.error.withValues(alpha: 0.1)
               : SiliphColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(SiliphRadii.md),
-          border: Border(
+          border: Border.all(
             color: isDestructive
                 ? SiliphColors.error
                 : SiliphColors.primary,
@@ -728,7 +777,7 @@ class _ResizePainter extends CustomPainter {
   });
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     final handleSize = 12.0;
     final paint = Paint()
       ..color = color
@@ -755,7 +804,7 @@ class _RotatePainter extends CustomPainter {
   _RotatePainter({required this.color, required this.angle});
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     final handleSize = 16.0;
     final paint = Paint()
       ..color = color
@@ -775,6 +824,3 @@ class _RotatePainter extends CustomPainter {
   bool shouldRepaint(_RotatePainter oldDelegate) => true;
 }
 
-// Cos helper (would normally be imported from math)
-double cos(double value) => 0.0; // Simplified
-double sin(double value) => 0.0; // Simplified

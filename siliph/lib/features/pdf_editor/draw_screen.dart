@@ -21,7 +21,7 @@ enum _DrawPhase { drawing, erasing, selected, deleting }
 
 /// Drawing state model
 class _DrawState {
-  final List<Offset> points = [];
+  final List<Offset> points;
   final List<List<Offset>> completedStrokes = [];
   final String tool; // 'pen', 'pencil', 'highlighter', 'eraser'
   final Color color;
@@ -35,7 +35,8 @@ class _DrawState {
     this.strokeWidth = 2.0,
     this.opacity = 1.0,
     this.isErasing = false,
-  });
+    List<Offset>? points,
+  }) : points = points ?? [];
 
   _DrawState copyWith({
     String? tool,
@@ -43,6 +44,7 @@ class _DrawState {
     double? strokeWidth,
     double? opacity,
     bool? isErasing,
+    List<Offset>? points,
   }) {
     return _DrawState(
       tool: tool ?? this.tool,
@@ -50,6 +52,7 @@ class _DrawState {
       strokeWidth: strokeWidth ?? this.strokeWidth,
       opacity: opacity ?? this.opacity,
       isErasing: isErasing ?? this.isErasing,
+      points: points ?? this.points,
     );
   }
 }
@@ -66,7 +69,7 @@ class DrawScreen extends ConsumerStatefulWidget {
   final int pageNumber;
 
   @override
-  ConsumerState<DrawScreen> createState() => _DrawScreenState;
+  ConsumerState<DrawScreen> createState() => _DrawScreenState();
 }
 
 class _DrawScreenState extends ConsumerState<DrawScreen> {
@@ -261,24 +264,28 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
             phase: _DrawPhase.drawing,
             label: 'Draw',
             active: _phase == _DrawPhase.drawing,
+            onSelected: (selected) => setState(() => _phase = _DrawPhase.drawing),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _DrawPhase.erasing,
             label: 'Erase',
             active: _phase == _DrawPhase.erasing,
+            onSelected: (selected) => setState(() => _phase = _DrawPhase.erasing),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _DrawPhase.selected,
             label: 'Select',
             active: _phase == _DrawPhase.selected,
+            onSelected: (selected) => setState(() => _phase = _DrawPhase.selected),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _DrawPhase.deleting,
             label: 'Delete',
             active: _phase == _DrawPhase.deleting,
+            onSelected: (selected) => setState(() => _phase = _DrawPhase.deleting),
           ),
         ],
       ),
@@ -294,13 +301,13 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         runSpacing: SiliphSpacing.xs,
         children: [
           _ToolButton(
-            icon: Icons.brush_outlined,
+            icon: Icons.brush,
             label: 'Pen',
             isSelected: _drawState.tool == 'pen',
             onTap: () => _toggleTool('pen'),
           ),
           _ToolButton(
-            icon: Icons.pencil_outlined,
+            icon: Icons.palette,
             label: 'Pencil',
             isSelected: _drawState.tool == 'pencil',
             onTap: () => _toggleTool('pencil'),
@@ -312,7 +319,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
             onTap: () => _toggleTool('highlighter'),
           ),
           _ToolButton(
-            icon: Icons.erase_outlined,
+            icon: Icons.remove,
             label: 'Eraser',
             isSelected: _drawState.tool == 'eraser',
             onTap: () => _toggleTool('eraser'),
@@ -366,13 +373,39 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   max: 1.0,
                   onChanged: _changeOpacity,
                 ),
-                Text('${(_drawState.opacity * 100).toInt()}%', style: const TextStyle(fontSize: 12)),
+                Text('${(_drawState.opacity * 100).toInt()}%',
+                    style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  List<Widget> _colorChips() {
+    return [
+      _ColorChip(
+        color: SiliphColors.primary,
+        isSelected: _drawState.color == SiliphColors.primary,
+        onSelected: (_) => _changeColor(SiliphColors.primary),
+      ),
+      _ColorChip(
+        color: SiliphColors.warning,
+        isSelected: _drawState.color == SiliphColors.warning,
+        onSelected: (_) => _changeColor(SiliphColors.warning),
+      ),
+      _ColorChip(
+        color: SiliphColors.error,
+        isSelected: _drawState.color == SiliphColors.error,
+        onSelected: (_) => _changeColor(SiliphColors.error),
+      ),
+      _ColorChip(
+        color: SiliphColors.info,
+        isSelected: _drawState.color == SiliphColors.info,
+        onSelected: (_) => _changeColor(SiliphColors.info),
+      ),
+    ];
   }
 
   Widget _buildCanvas() {
@@ -397,7 +430,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       child: CustomPaint(
         painter: _DrawPainter(drawState: _drawState),
         size: Size.infinite,
-        // Fit: match parent size would be set by parent
       ),
     );
   }
@@ -457,11 +489,13 @@ class _PhaseChip extends StatelessWidget {
   final _DrawPhase phase;
   final String label;
   final bool active;
+  final ValueChanged<bool> onSelected;
 
   const _PhaseChip({
     required this.phase,
     required this.label,
     required this.active,
+    required this.onSelected,
   });
 
   @override
@@ -469,18 +503,18 @@ class _PhaseChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _phase = phase),
+      onSelected: onSelected,
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );
   }
 }
 
-// Color chips
+// Color chip
 class _ColorChip extends StatelessWidget {
   final Color color;
   final bool isSelected;
-  final VoidCallback onSelected;
+  final ValueChanged<Color> onSelected;
 
   const _ColorChip({
     required this.color,
@@ -500,7 +534,7 @@ class _ColorChip extends StatelessWidget {
         ),
       ),
       selected: isSelected,
-      onSelected: (_) => onSelected(),
+      onSelected: (_) => onSelected(color),
       selectedColor: Colors.transparent,
       backgroundColor: Colors.transparent,
     );
@@ -514,19 +548,23 @@ class _DrawPainter extends CustomPainter {
   _DrawPainter({required this.drawState});
 
   @override
-  void paint(Canvas canvas) {
+  bool shouldRepaint(_DrawPainter oldDelegate) => true;
+
+  @override
+  void paint(Canvas canvas, Size size) {
     final strokePaint = Paint()
       ..color = drawState.color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth: drawState.strokeWidth
-      ..strokeCap = StrokeCap.round;
+      ..style = PaintingStyle.stroke;
+    strokePaint.strokeWidth = drawState.strokeWidth;
+    strokePaint.strokeCap = StrokeCap.round;
 
     // Draw completed strokes
-    for (final stroke in drawState.completedStrokes) {
+for (final stroke in drawState.completedStrokes) {
       if (stroke.length < 2) {
         canvas.drawCircle(
           stroke.first,
           drawState.strokeWidth / 2,
+          // Draw completed stroke
           strokePaint..color = drawState.color.withValues(alpha: drawState.opacity),
         );
         continue;
@@ -536,7 +574,8 @@ class _DrawPainter extends CustomPainter {
         path.lineTo(point.dx, point.dy);
       }
       canvas.drawPath(path,
-          paint..color = drawState.color.withValues(alpha: drawState.opacity));
+          // Draw completed stroke
+          strokePaint..color = drawState.color.withValues(alpha: drawState.opacity));
     }
 
     // Draw in-progress stroke
@@ -546,10 +585,8 @@ class _DrawPainter extends CustomPainter {
         path.lineTo(point.dx, point.dy);
       }
       canvas.drawPath(path,
-          paint..color = drawState.color.withValues(alpha: drawState.opacity));
+          // Draw in-progress stroke
+          strokePaint..color = drawState.color.withValues(alpha: drawState.opacity));
     }
   }
-
-  @override
-  bool shouldRepaint(_DrawPainter oldDelegate) => true;
 }

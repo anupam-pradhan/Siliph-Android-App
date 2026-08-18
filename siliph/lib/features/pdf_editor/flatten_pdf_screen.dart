@@ -26,7 +26,7 @@ class FlattenPdfScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<FlattenPdfScreen> createState() => _FlattenPdfScreenState;
+  ConsumerState<FlattenPdfScreen> createState() => _FlattenPdfScreenState();
 }
 
 class _FlattenPdfScreenState extends ConsumerState<FlattenPdfScreen> {
@@ -63,7 +63,7 @@ class _FlattenPdfScreenState extends ConsumerState<FlattenPdfScreen> {
 
   // Show confirmation before flattening
   Future<bool?> _showFlattenConfirmation() {
-    if (!mounted) return null;
+    if (!mounted) return Future.value(null);
     
     return showDialog(
       context: context,
@@ -132,8 +132,10 @@ class _FlattenPdfScreenState extends ConsumerState<FlattenPdfScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _showFlattenConfirmation().then((value) =>
-                      value == true ? _flattenPdf() : null),
+                  onPressed: () async {
+                    final confirmed = await _showFlattenConfirmation();
+                    if (confirmed == true) _flattenPdf();
+                  },
                   child: const Text('Flatten PDF'),
                 ),
               ),

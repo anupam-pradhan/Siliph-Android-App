@@ -26,7 +26,7 @@ class ProtectPdfScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<ProtectPdfScreen> createState() => _ProtectPdfScreenState;
+  ConsumerState<ProtectPdfScreen> createState() => _ProtectPdfScreenState();
 }
 
 class _ProtectPdfScreenState extends ConsumerState<ProtectPdfScreen> {

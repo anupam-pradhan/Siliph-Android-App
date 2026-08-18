@@ -54,14 +54,14 @@ class _UnsavedChangesDialogState extends State<_UnsavedChangesDialog> {
       actions: [
         TextButton(
           onPressed: () {
-            Navigator.of(context).pop(false); // Cancel
+            Navigator.of(context).pop(null);
             widget.onCancel();
           },
           child: const Text('Cancel'),
         ),
         TextButton(
           onPressed: () {
-            Navigator.of(context).pop(true); // Discard
+            Navigator.of(context).pop(false);
             widget.onDiscard();
           },
           child: const Text('Discard'),

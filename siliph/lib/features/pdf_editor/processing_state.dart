@@ -24,7 +24,7 @@ class ProcessingState extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Center(
       child: Container(
         padding: const EdgeInsets.all(SiliphSpacing.lg),

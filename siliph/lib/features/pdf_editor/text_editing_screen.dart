@@ -118,7 +118,7 @@ class TextEditingScreen extends ConsumerStatefulWidget {
 class _TextEditingScreenState extends ConsumerState<TextEditingScreen> {
   _TextEditPhase _phase = _TextEditPhase.select;
   String _currentText = '';
-  _TextFormatting _formatting;
+  _TextFormatting _formatting = _TextFormatting();
   bool _isDirty = false;
   String? _error;
   TextEditingController? _controller;
@@ -330,12 +330,13 @@ class _TextEditingScreenState extends ConsumerState<TextEditingScreen> {
         return _ResizingView(
           formatting: _formatting,
           onFontSizeChanged: _changeFontSize,
-          onAlignmentChanged: _changeAlignment,
+          onAlignmentChanged: (_) => _changeAlignment(_formatting.alignment),
         );
       case _TextEditPhase.moved:
         return _MovedView(
           formatting: _formatting,
           onComplete: _saveText,
+          onCancel: _cancelEditing,
         );
       case _TextEditPhase.deleted:
         return const _DeletedView();
@@ -370,7 +371,7 @@ class _TextEditingScreenState extends ConsumerState<TextEditingScreen> {
 
             // Bold button
             _ActionButton(
-              icon: _formatting.isBold ? Icons.bold_outlined : Icons.bold_outlined,
+              icon: _formatting.isBold ? Icons.format_bold_outlined : Icons.text_fields_outlined,
               onTap: _toggleBold,
               label: 'Bold',
             ),
@@ -378,7 +379,7 @@ class _TextEditingScreenState extends ConsumerState<TextEditingScreen> {
 
             // Italic button
             _ActionButton(
-              icon: _formatting.isItalic ? Icons.italic_outlined : Icons.italic_outlined,
+              icon: _formatting.isItalic ? Icons.format_italic_outlined : Icons.text_fields_outlined,
               onTap: _toggleItalic,
               label: 'Italic',
             ),
@@ -482,7 +483,7 @@ class _TextSelectionPainter extends CustomPainter {
   _TextSelectionPainter({required this.text, required this.bounds});
 
   @override
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, Size size) {
     // Draw text background
     final bgPaint = Paint()
       ..color = SiliphColors.primary.withValues(alpha: 0.1)
@@ -493,8 +494,7 @@ class _TextSelectionPainter extends CustomPainter {
     // Draw text
     final textPaint = Paint()
       ..color = SiliphColors.primary
-      ..style = PaintingStyle.fill
-      ..fontSize = 14;
+      ..style = PaintingStyle.fill;
 
     final textSpan = TextSpan(text: text, style: TextStyle(fontSize: 14));
     final textPainter = TextPainter(
@@ -640,12 +640,12 @@ class _CursorView extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _QuickActionButton(
-                  icon: formatting.isBold ? Icons.bold : Icons.bold_outlined,
+                  icon: formatting.isBold ? Icons.format_bold_outlined : Icons.text_fields_outlined,
                   onTap: onToggleBold,
                   label: 'B',
                 ),
                 _QuickActionButton(
-                  icon: formatting.isItalic ? Icons.italic : Icons.italic_outlined,
+                  icon: formatting.isItalic ? Icons.format_italic_outlined : Icons.text_fields_outlined,
                   onTap: onToggleItalic,
                   label: 'I',
                 ),
@@ -672,7 +672,7 @@ class _CursorView extends StatelessWidget {
 class _ResizingView extends StatelessWidget {
   final _TextFormatting formatting;
   final Function(double) onFontSizeChanged;
-  final Function(TextAlign) onAlignmentChanged;
+  final ValueChanged<TextAlign?>? onAlignmentChanged;
 
   const _ResizingView({
     required this.formatting,
@@ -733,10 +733,12 @@ class _ResizingView extends StatelessWidget {
 class _MovedView extends StatelessWidget {
   final _TextFormatting formatting;
   final VoidCallback onComplete;
+  final VoidCallback onCancel;
 
   const _MovedView({
     required this.formatting,
     required this.onComplete,
+    required this.onCancel,
   });
 
   @override
@@ -762,7 +764,7 @@ class _MovedView extends StatelessWidget {
             const SizedBox(height: SiliphSpacing.sm),
             _QuickActionButton(
               icon: Icons.cancel_outlined,
-              onTap: () => _cancelEditing(),
+              onTap: () => onCancel(),
               label: 'Cancel',
             ),
           ],
@@ -943,7 +945,7 @@ class _AlignmentChips extends StatelessWidget {
 class _AlignmentChip extends StatelessWidget {
   final TextAlign alignment;
   final bool isSelected;
-  final VoidCallback onTap;
+  final ValueChanged<TextAlign> onTap;
 
   const _AlignmentChip({
     required this.alignment,
@@ -953,12 +955,28 @@ class _AlignmentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(alignment.toString().split('.').last),
-      selected: isSelected,
-      onSelected: (_) => onTap(),
-      selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
-      backgroundColor: Colors.transparent,
+    return InkWell(
+      onTap: () => onTap(alignment),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: SiliphSpacing.sm,
+          vertical: SiliphSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? SiliphColors.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          border: Border.all(
+            color: isSelected ? SiliphColors.primary : SiliphColors.outline,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(SiliphRadii.md),
+        ),
+        child: Text(
+          alignment.toString().split('.').last,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
     );
   }
 }

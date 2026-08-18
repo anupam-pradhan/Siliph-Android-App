@@ -32,11 +32,14 @@ class _SearchModel {
     this.query = '',
     List<String>? results,
     List<Rect>? rects,
+    int? currentIndex,
+    int? totalMatches,
+    bool? isSearching,
   })  : results = results ?? [],
        rects = rects ?? [],
-       currentIndex = -1,
-       totalMatches = 0,
-       isSearching = false;
+       currentIndex = currentIndex ?? -1,
+       totalMatches = totalMatches ?? 0,
+       isSearching = isSearching ?? false;
 
   _SearchModel copyWith({
     String? query,
@@ -57,7 +60,7 @@ class _SearchModel {
   }
 
   _SearchModel withSearching(bool searching) {
-    return copyWith(isSearching: searching);
+    return copyWith(query: query, results: results, rects: rects);
   }
 }
 
@@ -71,7 +74,7 @@ class SearchScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<SearchScreen> createState() => _SearchScreenState;
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {

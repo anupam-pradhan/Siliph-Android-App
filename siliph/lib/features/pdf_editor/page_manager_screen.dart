@@ -59,7 +59,7 @@ class PageManagerScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<PageManagerScreen> createState() => _PageManagerScreenState;
+  ConsumerState<PageManagerScreen> createState() => _PageManagerScreenState();
 }
 
 class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
@@ -136,15 +136,15 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
   }
 
   // Delete selected pages
-  void _deleteSelectedPages() {
+  Future<void> _deleteSelectedPages() async {
     if (_selectedPages.isEmpty) return;
     
     // Show confirmation
     if (!mounted) return;
-    final showDialog = _showDeleteConfirmation(_selectedPages.length);
-    if (showDialog == null) return;
+    final shouldDelete = await _showDeleteConfirmation(_selectedPages.length);
+    if (shouldDelete == null) return;
     
-    if (showDialog) {
+    if (shouldDelete) {
       setState(() {
         // Remove selected pages (in reverse order to maintain indices)
         final sortedPages = _selectedPages.toList()..sort((a, b) => b.compareTo(a));
@@ -165,7 +165,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
     return await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete $_count pages?'),
+        title: Text('Delete $count pages?'),
         content: Text('Are you sure you want to permanently delete these pages?'),
         actions: [
           TextButton(
@@ -208,7 +208,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
     setState(() {
       if (fromIndex == toIndex) return;
       
-      final PageModel moved = _pages[fromIndex];
+      final _PageModel moved = _pages[fromIndex];
       _pages.removeAt(fromIndex);
       _pages.insert(toIndex, moved);
       
@@ -243,7 +243,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
     setState(() {
       _pages[pageIndex - 1] = _PageModel(
         index: pageIndex,
-        thumbnailData: /* new thumbnail */,
+        thumbnailData: 'updated_${pageIndex}',
       );
     });
   }
@@ -304,7 +304,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
         children: _PagePhase.values.map((_PagePhase phase) {
           return _PhaseChip(
             phase: phase,
-            label: _phaseLabel(phase),
+            label: _pageLabel(phase),
             active: _phase == phase,
             onTap: () => setState(() => _phase = phase),
           );
@@ -348,7 +348,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
           const SizedBox(width: SiliphSpacing.sm),
 
           // Delete (multi-select mode)
-          if (_isMultiSelect)...[
+          if (_isMultiSelect) ...[
             Expanded(
               child: _ActionButton(
                 icon: Icons.delete_outlined,
@@ -357,7 +357,8 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
                 isDestructive: true,
               ),
             ),
-          ]...[
+          ],
+          if (!_isMultiSelect) ...[
             // Single select actions
             Expanded(
               child: _ActionButton(
@@ -383,7 +384,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
           // Rotate
           Expanded(
             child: _ActionButton(
-              icon: Icons.rotate_outlined,
+              icon: Icons.rotate_right_outlined,
               label: 'Rotate',
               onTap: () => _rotatePage(_selectedPages.isNotEmpty ? _selectedPages.first : 1),
             ),
@@ -424,7 +425,7 @@ class _PageManagerScreenState extends ConsumerState<PageManagerScreen> {
           isSelected: _selectedPages.contains(page.index),
           isMultiSelect: _isMultiSelect,
           onDragStart: () => _draggedPage = page,
-          onDrop: (_) {
+          onDrop: () {
             _dropPosition = null;
             _draggedPage = null;
           },
@@ -489,7 +490,7 @@ class _ActionButton extends StatelessWidget {
               ? SiliphColors.error.withValues(alpha: 0.1)
               : SiliphColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(SiliphRadii.md),
-          border: Border(
+          border: Border.all(
             color: isDestructive ? SiliphColors.error : SiliphColors.primary,
             width: 1,
           ),
@@ -527,7 +528,7 @@ class _PageThumbnail extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final color = isSelected
         ? SiliphColors.primary
         : SiliphColors.surface;

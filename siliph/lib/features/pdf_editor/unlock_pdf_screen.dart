@@ -25,7 +25,7 @@ class UnlockPdfScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<UnlockPdfScreen> createState() => _UnlockPdfScreenState;
+  ConsumerState<UnlockPdfScreen> createState() => _UnlockPdfScreenState();
 }
 
 class _UnlockPdfScreenState extends ConsumerState<UnlockPdfScreen> {

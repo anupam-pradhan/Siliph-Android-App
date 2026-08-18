@@ -66,7 +66,7 @@ class LinkEditorScreen extends ConsumerStatefulWidget {
   final int pageNumber;
 
   @override
-  ConsumerState<LinkEditorScreen> createState() => _LinkEditorScreenState;
+  ConsumerState<LinkEditorScreen> createState() => _LinkEditorScreenState();
 }
 
 class _LinkEditorScreenState extends ConsumerState<LinkEditorScreen> {
@@ -179,23 +179,26 @@ class _LinkEditorScreenState extends ConsumerState<LinkEditorScreen> {
       padding: const EdgeInsets.all(SiliphSpacing.md),
       child: Row(
         children: [
-          _PhaseChip(
-            phase: _LinkPhase.adding,
-            label: 'Add',
-            active: _phase == _LinkPhase.adding,
-          ),
-          const SizedBox(width: SiliphSpacing.sm),
-          _PhaseChip(
-            phase: _LinkPhase.editing,
-            label: 'Edit',
-            active: _phase == _LinkPhase.editing,
-          ),
-          const SizedBox(width: SiliphSpacing.sm),
-          _PhaseChip(
-            phase: _LinkPhase.selected,
-            label: 'Selected',
-            active: _phase == _LinkPhase.selected,
-          ),
+_PhaseChip(
+  phase: _LinkPhase.adding,
+  label: 'Add',
+  active: _phase == _LinkPhase.adding,
+  onSelected: () => setState(() => _phase = _LinkPhase.adding),
+),
+const SizedBox(width: SiliphSpacing.sm),
+_PhaseChip(
+  phase: _LinkPhase.editing,
+  label: 'Edit',
+  active: _phase == _LinkPhase.editing,
+  onSelected: () => setState(() => _phase = _LinkPhase.editing),
+),
+const SizedBox(width: SiliphSpacing.sm),
+_PhaseChip(
+  phase: _LinkPhase.selected,
+  label: 'Selected',
+  active: _phase == _LinkPhase.selected,
+  onSelected: () => setState(() => _phase = _LinkPhase.selected),
+),
         ],
       ),
     );
@@ -318,7 +321,7 @@ class _LinkEditorScreenState extends ConsumerState<LinkEditorScreen> {
 class _LinkTypeChip extends StatelessWidget {
   final _LinkType linkType;
   final bool isSelected;
-  final VoidCallback onSelected;
+  final void Function(_LinkType) onSelected;
 
   const _LinkTypeChip({
     required this.linkType,
@@ -342,7 +345,7 @@ class _LinkTypeChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(_getLabel(linkType)),
       selected: isSelected,
-      onSelected: (_) => onSelected(),
+      onSelected: (_) => onSelected(linkType),
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );
@@ -354,11 +357,13 @@ class _PhaseChip extends StatelessWidget {
   final _LinkPhase phase;
   final String label;
   final bool active;
+  final VoidCallback onSelected;
 
   const _PhaseChip({
     required this.phase,
     required this.label,
     required this.active,
+    required this.onSelected,
   });
 
   @override
@@ -366,7 +371,7 @@ class _PhaseChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _phase = phase),
+      onSelected: (_) => onSelected(),
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );

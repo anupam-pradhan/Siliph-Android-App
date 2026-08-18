@@ -26,7 +26,7 @@ enum _FindPhase { finding, replacing, results }
 class _FindReplaceModel {
   final String findText;
   final String replaceWith;
-  final List<int> matches; // Line numbers or positions
+  final List<int> _matchList; // Line numbers or positions
   bool _isSearching;
   int _currentMatchIndex;
 
@@ -34,20 +34,18 @@ class _FindReplaceModel {
     this.findText = '',
     this.replaceWith = '',
     List<int>? matches,
-  })  : _matches = matches ?? [],
+  })  : _matchList = matches ?? [],
        _isSearching = false,
        _currentMatchIndex = -1;
 
-  final List<int> _matches;
-
-  List<int> get matches => _matches;
+  List<int> get matches => _matchList;
 
   int get currentMatchIndex => _currentMatchIndex;
   set currentMatchIndex(int index) {
-    _currentMatchIndex = index.clamp(0, _matches.length - 1);
+    _currentMatchIndex = index.clamp(0, _matchList.length - 1);
   }
 
-  int get matchCount => _matches.length;
+  int get matchCount => _matchList.length;
 
   _FindReplaceModel copyWith({
     String? findText,
@@ -59,7 +57,7 @@ class _FindReplaceModel {
     return _FindReplaceModel(
       findText: findText ?? this.findText,
       replaceWith: replaceWith ?? this.replaceWith,
-      matches: matches ?? this._matches,
+      matches: matches ?? this._matchList,
     )..currentMatchIndex = currentMatchIndex ?? this._currentMatchIndex;
   }
 
@@ -80,7 +78,7 @@ class FindReplaceScreen extends ConsumerStatefulWidget {
   final int pageNumber;
 
   @override
-  ConsumerState<FindReplaceScreen> createState() => _FindReplaceScreenState;
+  ConsumerState<FindReplaceScreen> createState() => _FindReplaceScreenState();
 }
 
 class _FindReplaceScreenState extends ConsumerState<FindReplaceScreen> {
@@ -218,12 +216,14 @@ class _FindReplaceScreenState extends ConsumerState<FindReplaceScreen> {
             phase: _FindPhase.finding,
             label: 'Find',
             active: _phase == _FindPhase.finding,
+            onPhaseSelected: (_) => setState(() => _phase = _FindPhase.finding),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _FindPhase.replacing,
             label: 'Replace',
             active: _phase == _FindPhase.replacing,
+            onPhaseSelected: (_) => setState(() => _phase = _FindPhase.replacing),
           ),
         ],
       ),
@@ -366,11 +366,42 @@ class _FindReplaceScreenState extends ConsumerState<FindReplaceScreen> {
     
     // Distribute matches horizontally across the page
     final x = 50 + (index * (pageWidth - 100) / matchCount);
-    final y = 100 + (index % 3) * 100;
+    final y = (100 + (index % 3) * 100).toDouble();
     final width = (pageWidth - 100) / matchCount - 20;
     final height = 30.0;
     
     return Rect.fromLTWH(x, y, width, height);
+  }
+}
+
+// Highlight rect widget
+class _HighlightRect extends StatelessWidget {
+  final Rect rect;
+  final bool isCurrent;
+
+  const _HighlightRect({
+    required this.rect,
+    required this.isCurrent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isCurrent
+        ? SiliphColors.primary
+        : SiliphColors.primary.withValues(alpha: 0.3);
+
+    return Positioned(
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
   }
 }
 
@@ -379,11 +410,13 @@ class _PhaseChip extends StatelessWidget {
   final _FindPhase phase;
   final String label;
   final bool active;
+  final ValueChanged<bool>? onPhaseSelected;
 
   const _PhaseChip({
     required this.phase,
     required this.label,
     required this.active,
+    this.onPhaseSelected,
   });
 
   @override
@@ -391,7 +424,7 @@ class _PhaseChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: active,
-      onSelected: (_) => setState(() => _phase = phase),
+      onSelected: (selected) => onPhaseSelected?.call(selected),
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );

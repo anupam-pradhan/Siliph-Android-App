@@ -41,6 +41,8 @@ abstract final class SiliphColors {
   static const Color categorySecurity = Color(0xFF6E56CF);
   static const Color categoryUtilities = Color(0xFF0091FF);
   static const Color categoryAi = Color(0xFFDB61B2);
+  static const Color secondary = Color(0xFF7A6FF0);
+  static const Color tertiary = Color(0xFF12A594);
 
   /// Builds the light [ColorScheme] used by the app theme.
   static ColorScheme lightScheme() {

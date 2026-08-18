@@ -25,7 +25,7 @@ class MetadataScreen extends ConsumerStatefulWidget {
   final FileItem file;
 
   @override
-  ConsumerState<MetadataScreen> createState() => _MetadataScreenState;
+  ConsumerState<MetadataScreen> createState() => _MetadataScreenState();
 }
 
 class _MetadataScreenState extends ConsumerState<MetadataScreen> {

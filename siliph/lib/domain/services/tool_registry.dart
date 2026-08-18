@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 
 import '../models/tool_category.dart';
 import '../models/tool_definition.dart';
-import 'pdf_editor/tool_definitions.dart';
+import '../../features/pdf_editor/tool_definitions.dart';
 
 /// Immutable registry of all Siliph tools.
 class ToolRegistry {

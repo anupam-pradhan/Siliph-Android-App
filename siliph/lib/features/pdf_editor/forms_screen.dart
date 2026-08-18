@@ -39,6 +39,7 @@ class _FormFieldModel {
   final List<String> options;
   // Signature specific
   bool hasSignature;
+  bool isSelected;
   // Position and size
   final Rect bounds;
 
@@ -53,8 +54,9 @@ class _FormFieldModel {
     this.isChecked = false,
     this.selectedValue,
     List<String>? options,
-    this.hasSignature = false,
-    required this.bounds,
+this.hasSignature = false,
+      this.isSelected = false,
+      required this.bounds,
   }) : options = options ?? [];
 
   _FormFieldModel copyWith({
@@ -69,6 +71,7 @@ class _FormFieldModel {
     String? selectedValue,
     List<String>? options,
     bool? hasSignature,
+    bool? isSelected,
     Rect? bounds,
   }) {
     return _FormFieldModel(
@@ -83,6 +86,7 @@ class _FormFieldModel {
       selectedValue: selectedValue ?? this.selectedValue,
       options: options ?? this.options,
       hasSignature: hasSignature ?? this.hasSignature,
+      isSelected: isSelected ?? this.isSelected,
       bounds: bounds ?? this.bounds,
     );
   }
@@ -100,7 +104,7 @@ class FormsScreen extends ConsumerStatefulWidget {
   final int pageNumber;
 
   @override
-  ConsumerState<FormsScreen> createState() => _FormsScreenState;
+  ConsumerState<FormsScreen> createState() => _FormsScreenState();
 }
 
 class _FormsScreenState extends ConsumerState<FormsScreen> {
@@ -116,8 +120,12 @@ class _FormsScreenState extends ConsumerState<FormsScreen> {
   bool _isDirty = false;
   String? _error;
   bool _keyboardVisible = false;
+  bool _isMoving = false;
+  void onSelected(bool selected) {
+    // Handle option chip selection
+  }
 
-  // Existing fields list
+// Existing fields list
   final List<_FormFieldModel> _fields = [];
 
   // Currently selected field
@@ -283,24 +291,28 @@ class _FormsScreenState extends ConsumerState<FormsScreen> {
             phase: _FormPhase.adding,
             label: 'Add',
             active: _phase == _FormPhase.adding,
+            onSelected: (selected) => setState(() => _phase = _FormPhase.adding),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _FormPhase.editing,
             label: 'Edit',
             active: _phase == _FormPhase.editing,
+            onSelected: (selected) => setState(() => _phase = _FormPhase.editing),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _FormPhase.filling,
             label: 'Fill',
             active: _phase == _FormPhase.filling,
+            onSelected: (selected) => setState(() => _phase = _FormPhase.filling),
           ),
           const SizedBox(width: SiliphSpacing.sm),
           _PhaseChip(
             phase: _FormPhase.selected,
             label: 'Selected',
             active: _phase == _FormPhase.selected,
+            onSelected: (selected) => setState(() => _phase = _FormPhase.selected),
           ),
         ],
       ),
@@ -397,17 +409,17 @@ class _FormsScreenState extends ConsumerState<FormsScreen> {
                 _OptionChip(
                   label: 'Option 1',
                   isSelected: false,
-                  onSelected: (_) {},
+                  onSelected: (_) => onSelected(true),
                 ),
                 _OptionChip(
                   label: 'Option 2',
                   isSelected: false,
-                  onSelected: (_) {},
+                  onSelected: (_) => onSelected(true),
                 ),
                 _OptionChip(
                   label: 'Option 3',
                   isSelected: false,
-                  onSelected: (_) {},
+                  onSelected: (_) => onSelected(true),
                 ),
               ],
             ),
@@ -530,11 +542,11 @@ class _FormsScreenState extends ConsumerState<FormsScreen> {
 
           // New field preview
           if (_phase == _FormPhase.adding && _selectedField == null)
-            _FieldPreview(field: _field),
+            _fieldPreview(field: _field),
 
           // Selected field
           if (_selectedField != null) ...[
-            _FieldPreview(field: _selectedField!),
+            _fieldPreview(field: _selectedField!),
           ],
 
           // Existing fields
@@ -569,7 +581,8 @@ class _FormsScreenState extends ConsumerState<FormsScreen> {
   }
 
   // Build field preview widget
-  Widget _fieldPreview(_FormFieldModel field) {
+  // Build field preview widget
+  Widget _fieldPreview({required _FormFieldModel field}) {
     final color = switch (field.type) {
       _FormFieldType.text => SiliphColors.primary.withValues(alpha: 0.1),
       _FormFieldType.checkbox => SiliphColors.secondary.withValues(alpha: 0.1),
@@ -635,7 +648,7 @@ class _FormsScreenState extends ConsumerState<FormsScreen> {
 
   // Build existing field previews
   List<Widget> _buildFieldPreviews() {
-    return _fields.map((field) => _fieldPreview(field)).toList();
+    return _fields.map((field) => _fieldPreview(field: field)).toList();
   }
 }
 
@@ -681,7 +694,7 @@ class _FieldTypeChip extends StatelessWidget {
 // Field list tile
 class _FieldListTile extends StatelessWidget {
   final _FormFieldModel field;
-  final VoidCallback onEdit;
+  final void Function(_FormFieldModel) onEdit;
   final VoidCallback onDelete;
 
   const _FieldListTile({
@@ -698,11 +711,11 @@ class _FieldListTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: onEdit,
-            tooltip: 'Edit',
-          ),
+IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => onEdit(field),
+              tooltip: 'Edit',
+            ),
           IconButton(
             icon: const Icon(Icons.delete_outlined),
             onPressed: onDelete,
@@ -718,7 +731,7 @@ class _FieldListTile extends StatelessWidget {
 class _OptionChip extends StatelessWidget {
   final String label;
   final bool isSelected;
-  final VoidCallback onSelected;
+  final ValueChanged<bool> onSelected;
 
   const _OptionChip({
     required this.label,
@@ -731,7 +744,33 @@ class _OptionChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
-      onSelected: (_) => onSelected(),
+      onSelected: (_) => onSelected(true),
+      selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
+      backgroundColor: Colors.transparent,
+    );
+  }
+}
+
+// Phase chip
+class _PhaseChip extends StatelessWidget {
+  final _FormPhase phase;
+  final String label;
+  final bool active;
+  final ValueChanged<bool> onSelected;
+
+  const _PhaseChip({
+    required this.phase,
+    required this.label,
+    required this.active,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: active,
+      onSelected: onSelected,
       selectedColor: SiliphColors.primary.withValues(alpha: 0.15),
       backgroundColor: Colors.transparent,
     );
