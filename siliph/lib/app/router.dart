@@ -33,7 +33,8 @@ import '../features/qr/qr_generate_screen.dart';
 import '../features/qr/qr_scan_screen.dart';
 import '../features/reader/pdf_reader_screen.dart';
 import '../features/reader/pdf_tts_screen.dart';
-import '../features/scan/scan_capture_screen.dart';
+import '../features/scan/scan_camera_screen.dart';
+import '../features/scan/scan_mode.dart';
 import '../features/security/password_security_screen.dart';
 import '../features/security/redact_pdf_screen.dart';
 import '../features/watermark/watermark_pdf_screen.dart';
@@ -375,22 +376,22 @@ GoRouter buildRouter() {
       GoRoute(
         path: SiliphRoutes.scanDocumentWorkflow,
         builder: (context, state) =>
-            const ScanCaptureScreen(mode: ScanMode.document),
+            const ScanCameraScreen(mode: ScanMode.document),
       ),
       GoRoute(
         path: SiliphRoutes.scanReceiptWorkflow,
         builder: (context, state) =>
-            const ScanCaptureScreen(mode: ScanMode.receipt),
+            const ScanCameraScreen(mode: ScanMode.receipt),
       ),
       GoRoute(
         path: SiliphRoutes.scanIdWorkflow,
         builder: (context, state) =>
-            const ScanCaptureScreen(mode: ScanMode.idCard),
+            const ScanCameraScreen(mode: ScanMode.idCard),
       ),
       GoRoute(
         path: SiliphRoutes.scanBookWorkflow,
         builder: (context, state) =>
-            const ScanCaptureScreen(mode: ScanMode.book),
+            const ScanCameraScreen(mode: ScanMode.book),
       ),
       GoRoute(
         path: SiliphRoutes.qrScanWorkflow,
